@@ -81,3 +81,21 @@ test('연결이 끊기면 같은 토큰으로 자동 재접속해 자리를 되�
   assert.equal(host.host.game.turn, 0);
   a.s.destroy(); host.destroy();
 });
+
+test('온라인: 추천대로 내기와 같은 순서의 move 묶음이 방장에서 정상 처리된다', async () => {
+  const { planCpuTurn } = await import('../js/cpu.js');
+  const host = new HostSession({ name: '방장', onLobby() {}, onState() {}, onError() {} });
+  await tick();
+  const a = mkClient(host.code, 'A', 'ta'); await tick(60);
+  host.addCpu(); host.start(); await tick(40);
+  // 방장 차례: 손패를 30점짜리로 교체
+  const g = host.host.game; const p = g.players[0];
+  const mk = (c, n, id) => ({ id, color: c, num: n, joker: false });
+  p.rack = [mk('red', 10, 901), mk('blue', 10, 902), mk('black', 10, 903), mk('red', 1, 904)]; g.snapshot.rack = p.rack.slice();
+  const plan = planCpuTurn({ table: g.table, rack: p.rack, hasMelded: false });
+  assert.equal(plan.action, 'play');
+  host.dispatch({ type: 'move', ids: [901, 902, 903], to: { kind: 'new' } });
+  const r = host.dispatch({ type: 'end' });
+  assert.ok(r.ok); assert.equal(g.players[0].hasMelded, true);
+  a.s.destroy(); host.destroy();
+});

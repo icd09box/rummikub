@@ -337,8 +337,9 @@ function render(cpuView = false) {
     hint.className = 'hint ' + (r.ok ? 'good' : 'bad');
   }
   for (const id of ['resetBtn', 'drawBtn', 'endBtn']) $(id).disabled = !myTurn;
-  $('suggestBtn').classList.toggle('hidden', mode !== 'local');
-  $('autoPlayBtn').classList.toggle('hidden', mode !== 'local');
+  const allowSuggest = v.players.every((p, i) => i === v.seat || p.type === 'cpu');   // 나 빼고 전부 컴퓨터일 때만
+  $('suggestBtn').classList.toggle('hidden', !allowSuggest);
+  $('autoPlayBtn').classList.toggle('hidden', !allowSuggest);
   $('suggestBtn').disabled = $('autoPlayBtn').disabled = !myTurn;
   $('sortBtn').disabled = cpuView; $('sortBtn').textContent = sortMode === 'num' ? '숫자순' : '색깔순';
   if (!myTurn) selected.clear();
@@ -410,29 +411,32 @@ $('autoPlayBtn').addEventListener('click', () => {
   const hint = $('hint');
   if (plan.action === 'draw') { suggestIds.clear(); render(); hint.textContent = noPlayMessage(); hint.className = 'hint'; return; }
   const rackIds = new Set(view.rack.map(t => t.id));
+  // 기존 묶음 번호는 덧붙이기만 하므로 안 바뀌고, 새 묶음은 뒤에 붙으니 미리 다 계산해도 안전
   const steps = [];
   for (const set of plan.table) {
     const mine = set.filter(t => rackIds.has(t.id)).map(t => t.id);
     if (!mine.length) continue;
     const rest = set.filter(t => !rackIds.has(t.id)).map(t => t.id);
-    steps.push({ mine, rest });
-  }
-  let placed = 0;
-  for (const st of steps) {
     let to = { kind: 'new' };
-    if (st.rest.length) {
-      const idx = view.table.findIndex(set => st.rest.every(id => set.some(t => t.id === id)));
+    if (rest.length) {
+      const idx = view.table.findIndex(s => rest.every(id => s.some(t => t.id === id)));
       if (idx < 0) continue;
       to = { kind: 'set', index: idx };
     }
-    suggestIds.clear();
-    dispatch({ type: 'move', ids: st.mine, to });   // 같은 기기 모드는 동기라 view가 즉시 갱신됨
-    placed += st.mine.length;
+    steps.push({ ids: mine, to });
   }
-  lastMoved = new Set(steps.flatMap(st => st.mine)); lastMovedAt = Date.now(); render();
-  const r = view.check;
-  hint.textContent = `추천대로 ${placed}장 내려놓았어요. ${r && r.ok ? '확인하고 "내 차례 끝"을 누르세요.' : (r ? r.reason : '')}`;
-  hint.className = 'hint ' + (r && r.ok ? 'good' : 'bad');
+  suggestIds.clear();
+  for (const st of steps) dispatch({ type: 'move', ids: st.ids, to: st.to });
+  const placed = steps.reduce((n, st) => n + st.ids.length, 0);
+  lastMoved = new Set(steps.flatMap(st => st.ids)); lastMovedAt = Date.now();
+  if (mode === 'local') {
+    render();
+    const r = view.check;
+    hint.textContent = `추천대로 ${placed}장 내려놓았어요. ${r && r.ok ? '확인하고 "내 차례 끝"을 누르세요.' : (r ? r.reason : '')}`;
+    hint.className = 'hint ' + (r && r.ok ? 'good' : 'bad');
+  } else {
+    hint.textContent = `추천대로 ${placed}장 내려놓는 중…`; hint.className = 'hint good';
+  }
 });
 $('suggestBtn').addEventListener('click', () => {
   const v = view; const me = v.players[v.seat];
