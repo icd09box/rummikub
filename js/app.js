@@ -338,7 +338,8 @@ function render(cpuView = false) {
   }
   for (const id of ['resetBtn', 'drawBtn', 'endBtn']) $(id).disabled = !myTurn;
   $('suggestBtn').classList.toggle('hidden', mode !== 'local');
-  $('suggestBtn').disabled = !myTurn;
+  $('autoPlayBtn').classList.toggle('hidden', mode !== 'local');
+  $('suggestBtn').disabled = $('autoPlayBtn').disabled = !myTurn;
   $('sortBtn').disabled = cpuView; $('sortBtn').textContent = sortMode === 'num' ? '숫자순' : '색깔순';
   if (!myTurn) selected.clear();
   startCountdown(v.deadline);
@@ -396,13 +397,50 @@ function onSetClick(e, idx) {
   if (selected.size === 0) return;
   dispatch({ type: 'move', ids: [...selected], to: { kind: 'set', index: idx } }); selected.clear();
 }
+function computePlan() {
+  const v = view; const me = v.players[v.seat];
+  return planCpuTurn({ table: v.table, rack: v.rack, hasMelded: me.hasMelded });
+}
+function noPlayMessage() {
+  const me = view.players[view.seat];
+  return me.hasMelded ? '지금 낼 수 있는 조합이 안 보여요. "못 내면 뽑기"를 누르세요.' : '내 타일만으로 30점을 못 만들어요. "못 내면 뽑기"를 누르세요.';
+}
+$('autoPlayBtn').addEventListener('click', () => {
+  const plan = computePlan();
+  const hint = $('hint');
+  if (plan.action === 'draw') { suggestIds.clear(); render(); hint.textContent = noPlayMessage(); hint.className = 'hint'; return; }
+  const rackIds = new Set(view.rack.map(t => t.id));
+  const steps = [];
+  for (const set of plan.table) {
+    const mine = set.filter(t => rackIds.has(t.id)).map(t => t.id);
+    if (!mine.length) continue;
+    const rest = set.filter(t => !rackIds.has(t.id)).map(t => t.id);
+    steps.push({ mine, rest });
+  }
+  let placed = 0;
+  for (const st of steps) {
+    let to = { kind: 'new' };
+    if (st.rest.length) {
+      const idx = view.table.findIndex(set => st.rest.every(id => set.some(t => t.id === id)));
+      if (idx < 0) continue;
+      to = { kind: 'set', index: idx };
+    }
+    suggestIds.clear();
+    dispatch({ type: 'move', ids: st.mine, to });   // 같은 기기 모드는 동기라 view가 즉시 갱신됨
+    placed += st.mine.length;
+  }
+  lastMoved = new Set(steps.flatMap(st => st.mine)); lastMovedAt = Date.now(); render();
+  const r = view.check;
+  hint.textContent = `추천대로 ${placed}장 내려놓았어요. ${r && r.ok ? '확인하고 "내 차례 끝"을 누르세요.' : (r ? r.reason : '')}`;
+  hint.className = 'hint ' + (r && r.ok ? 'good' : 'bad');
+});
 $('suggestBtn').addEventListener('click', () => {
   const v = view; const me = v.players[v.seat];
-  const plan = planCpuTurn({ table: v.table, rack: v.rack, hasMelded: me.hasMelded });
+  const plan = computePlan();
   const hint = $('hint');
   if (plan.action === 'draw') {
     suggestIds.clear(); render();
-    hint.textContent = me.hasMelded ? '지금 낼 수 있는 조합이 안 보여요. "못 내면 뽑기"를 누르세요.' : '내 타일만으로 30점을 못 만들어요. "못 내면 뽑기"를 누르세요.';
+    hint.textContent = noPlayMessage();
     hint.className = 'hint'; return;
   }
   const rackIds = new Set(v.rack.map(t => t.id));
