@@ -86,11 +86,12 @@ button.primary { background: var(--accent); color: var(--accent-text); border-co
   .rack .tile { flex: 0 0 auto; }
   .tile { width: 38px; height: 54px; font-size: 19px; }
   .tile.selected { transform: translateY(-6px); }
-  /* 버튼: 한 줄에 다 들어가게 */
-  .actions { padding: 6px 10px; gap: 6px; flex-wrap: nowrap; }
-  .actions .group { flex-wrap: nowrap; }
+  /* 버튼: 두 줄. 아래 줄(뽑기·차례 끝)은 항상 전체 폭으로 보이게 */
+  .actions { padding: 6px 10px; gap: 6px; flex-wrap: wrap; }
+  .actions .group { flex-wrap: nowrap; width: 100%; overflow-x: auto; }
+  .actions .group.main { margin-left: 0; }
+  .actions .group.main button { flex: 1; font-weight: 700; padding: 11px 8px; font-size: 15px; }
   .actions button { padding: 8px 9px; font-size: 13px; white-space: nowrap; }
-  .actions .group.main button { font-weight: 700; }
   .hint { font-size: 12px; padding: 3px 10px; min-height: 18px; }
   .drag-ghost { width: 44px; height: 60px; font-size: 20px; }
 }
