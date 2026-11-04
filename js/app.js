@@ -16,6 +16,8 @@ let selected = new Set();
 let lastHumanShown = -1;
 let sortMode = 'num';
 let countdownTimer = null;
+let lastMoved = new Set();   // 직전 조작으로 옮긴 타일 id (놓은 곳 강조용)
+let lastMovedAt = 0;
 
 // ========== 설정 화면 ==========
 document.querySelectorAll('.tab').forEach(btn => btn.addEventListener('click', () => {
@@ -29,7 +31,7 @@ function renderSetupRows() {
   for (let i = 0; i < n; i++) {
     const row = document.createElement('div'); row.className = 'player-row';
     row.innerHTML = `<span>${i + 1}</span><input type="text" placeholder="플레이어 ${i + 1}" maxlength="10" data-name>
-      <select data-type><option value="human">사람</option><option value="cpu">CPU</option></select>`;
+      <select data-type><option value="human">사람</option><option value="cpu">컴퓨터</option></select>`;
     rows.appendChild(row);
   }
 }
@@ -69,15 +71,15 @@ $('joinBtn').addEventListener('click', () => {
   try { token = sessionStorage.getItem('rummi-token-' + code); } catch {}
   if (!token) { token = makeToken(); try { sessionStorage.setItem('rummi-token-' + code, token); } catch {} }
   $('lobbyCode').textContent = code; $('lobbyLink').textContent = '';
-  $('lobbyStatus').textContent = '방에 접속 중…';
+  $('lobbyStatus').textContent = '방에 들어가는 중…';
   show('lobby');
   session = new ClientSession({
     code, name, token,
-    onJoined: () => { $('lobbyStatus').textContent = '접속됨. 방장이 시작하길 기다리는 중…'; },
+    onJoined: () => { $('lobbyStatus').textContent = '들어왔어요. 방장이 시작하길 기다리는 중…'; },
     onLobby: renderLobby,
     onState: onView,
     onError: msg => { $('lobbyStatus').textContent = msg; flash(msg); },
-    onClosed: () => { flash('방장과의 연결이 끊어졌습니다.'); $('status').textContent = '연결 끊김'; },
+    onClosed: () => { flash('방장과 연결이 끊어졌어요.'); $('status').textContent = '연결 끊김'; },
   });
 });
 $('leaveBtn').addEventListener('click', () => { session && session.destroy(); session = null; show('setup'); });
@@ -91,7 +93,7 @@ function renderLobby(lobby) {
   const isHost = mode === 'host';
   $('lobbyPlayers').innerHTML = lobby.players.map((p, i) => `
     <div class="p">
-      <span>${i + 1}. ${esc(p.name)}${p.type === 'cpu' ? ' <small>CPU</small>' : ''}${p.connected ? '' : ' <small>(끊김)</small>'}</span>
+      <span>${i + 1}. ${esc(p.name)}${p.type === 'cpu' ? ' <small>컴퓨터</small>' : ''}${p.connected ? '' : ' <small>(끊김)</small>'}</span>
       ${isHost && i > 0 ? `<button class="mini" data-remove="${i}">내보내기</button>` : ''}
     </div>`).join('');
   $('lobbyPlayers').querySelectorAll('[data-remove]').forEach(b => b.addEventListener('click', () => session.removeSeat(Number(b.dataset.remove))));
@@ -102,7 +104,7 @@ function renderLobby(lobby) {
     const n = lobby.players.length;
     $('lobbyStart').disabled = n < 2;
     $('addCpuBtn').disabled = n >= 4;
-    $('lobbyStatus').textContent = n < 2 ? '참가자를 기다리는 중 (2~4명)' : `${n}명 — 시작할 수 있습니다`;
+    $('lobbyStatus').textContent = n < 2 ? '같이 할 사람을 기다리는 중 (2~4명)' : `${n}명 모였어요. 시작할 수 있어요`;
   }
 }
 $('addCpuBtn').addEventListener('click', () => session.addCpu());
@@ -115,7 +117,7 @@ function localFlow() {
   const p = current(game);
   if (p.type === 'cpu') {
     onView(buildView(game, -1), true);
-    $('status').textContent = `${p.name}(CPU) 생각 중…`;
+    $('status').textContent = `${p.name}(컴퓨터) 생각 중…`;
     setTimeout(() => { runCpuTurn(game); localFlow(); }, 700);
     return;
   }
@@ -136,15 +138,19 @@ function localDispatch(a) {
 }
 
 function dispatch(a) {
+  if (a.type === 'move' && a.to.kind !== 'rack') { lastMoved = new Set(a.ids); lastMovedAt = Date.now(); }
+  else if (a.type !== 'move') lastMoved.clear();
   if (mode === 'local') return localDispatch(a);
   session.dispatch(a);
 }
 
 // ========== 화면 ==========
+let helpChecked = false;
 function onView(v, cpuView = false) {
   view = v;
   if (v.phase === 'over') return renderOver(v);
   show('game'); render(cpuView);
+  if (!helpChecked && !cpuView) { helpChecked = true; maybeShowHelp(); }
 }
 
 function tileEl(t, opts = {}) {
@@ -153,6 +159,7 @@ function tileEl(t, opts = {}) {
   el.textContent = t.joker ? '☺' : t.num;
   if (selected.has(t.id)) el.classList.add('selected');
   if (opts.isNew) el.classList.add('new');
+  if (opts.justMoved) el.classList.add('just-moved');
   if (opts.hidden) el.classList.add('cpu-hidden');
   el.dataset.id = t.id;
   if (opts.draggable) attachDrag(el, t.id);
@@ -200,7 +207,7 @@ document.addEventListener('pointerup', e => {
   if (target.kind === 'rack') {
     const newIds = new Set(view.newIds);
     const mine = d.ids.filter(id => newIds.has(id));
-    if (mine.length !== d.ids.length) flash('이번 턴에 손패에서 꺼낸 타일만 되돌릴 수 있습니다.');
+    if (mine.length !== d.ids.length) flash('이번 차례에 내가 낸 타일만 다시 가져올 수 있어요.');
     if (!mine.length) return render();
     selected.clear(); return dispatch({ type: 'move', ids: mine, to: { kind: 'rack' } });
   }
@@ -271,7 +278,9 @@ function render(cpuView = false) {
     const el = document.createElement('div');
     el.className = 'set' + (a.ok ? '' : ' invalid');
     if (!v.snapshotSetKeys.includes(set.map(t => t.id).sort().join(','))) el.classList.add('changed');
-    (a.ok ? a.ordered : set).forEach(t => el.appendChild(tileEl(t, { isNew: newIds.has(t.id), draggable: myTurn })));
+    const fresh = Date.now() - lastMovedAt < 1500;
+    if (fresh && set.some(t => lastMoved.has(t.id))) el.classList.add('just-dropped');
+    (a.ok ? a.ordered : set).forEach(t => el.appendChild(tileEl(t, { isNew: newIds.has(t.id), draggable: myTurn, justMoved: fresh && lastMoved.has(t.id) })));
     if (myTurn) el.addEventListener('click', e => onSetClick(e, idx));
     table.appendChild(el);
   });
@@ -285,26 +294,28 @@ function render(cpuView = false) {
 
   $('players').innerHTML = v.players.map((x, i) => `
     <div class="p ${i === v.turn ? 'active' : ''}">
-      <span>${esc(x.name)}${x.type === 'cpu' ? ' <small>CPU</small>' : ''}${i === v.seat ? ' <small>(나)</small>' : ''}${x.connected ? '' : ' <small>끊김</small>'}</span>
-      <span class="meta">${x.count}장${x.hasMelded ? '' : ' · 미등록'}</span>
+      <span>${esc(x.name)}${x.type === 'cpu' ? ' <small>컴퓨터</small>' : ''}${i === v.seat ? ' <small>(나)</small>' : ''}${x.connected ? '' : ' <small>끊김</small>'}</span>
+      <span class="meta">${x.count}장${x.hasMelded ? '' : ' · 30점 전'}</span>
     </div>`).join('');
   $('poolCount').textContent = v.pool;
   $('log').innerHTML = v.log.slice().reverse().map(esc).join('<br>');
 
   const me = v.players[v.seat];
   if (cpuView) $('status').textContent = '';
-  else if (myTurn) $('status').textContent = `내 차례${me && !me.hasMelded ? ' (초기 등록 필요: 30점 이상)' : ''}`;
-  else $('status').textContent = `${v.currentName}의 차례 — 기다리는 중`;
+  else if (myTurn) $('status').textContent = `내 차례${me && !me.hasMelded ? ' · 처음엔 내 타일만으로 30점 이상 내야 해요' : ''}`;
+  else $('status').textContent = `${v.currentName}의 차례예요. 기다려 주세요`;
 
   const hint = $('hint');
-  if (!v.changed) { hint.textContent = myTurn ? '타일을 눌러 선택한 뒤 세트를 누르거나 "새 세트"를 누르세요.' : ''; hint.className = 'hint'; }
+  const freshNote = Date.now() - lastMovedAt < 1500 && lastMoved.size ? describeMove(v) : '';
+  if (freshNote) { hint.textContent = freshNote; hint.className = 'hint good'; }
+  else if (!v.changed) { hint.textContent = myTurn ? '타일을 끌어서 바닥에 놓으세요. 맞는 묶음 옆에 놓으면 알아서 붙어요.' : ''; hint.className = 'hint'; }
   else if (v.check) {
     const r = v.check;
-    hint.textContent = r.ok ? `턴 종료 가능 (${r.placed}장${r.meldValue != null ? `, 등록 ${r.meldValue}점` : ''})` : r.reason;
+    hint.textContent = r.ok ? `좋아요! "내 차례 끝"을 누르세요 (${r.placed}장 냄${r.meldValue != null ? `, 처음 내기 ${r.meldValue}점` : ''})` : r.reason;
     hint.className = 'hint ' + (r.ok ? 'good' : 'bad');
   }
   for (const id of ['newSetBtn', 'toRackBtn', 'resetBtn', 'drawBtn', 'endBtn']) $(id).disabled = !myTurn;
-  $('sortBtn').disabled = cpuView; $('sortBtn').textContent = sortMode === 'num' ? '정렬: 숫자' : '정렬: 색';
+  $('sortBtn').disabled = cpuView; $('sortBtn').textContent = sortMode === 'num' ? '숫자순' : '색깔순';
   $('newSetBtn').disabled = $('toRackBtn').disabled = $('autoBtn').disabled = !myTurn || selected.size === 0;
   if (!myTurn) selected.clear();
   startCountdown(v.deadline);
@@ -322,6 +333,19 @@ function startCountdown(deadline) {
   tick(); countdownTimer = setInterval(tick, 250);
 }
 
+const COLOR_KO = { red: '빨강', blue: '파랑', black: '검정', orange: '주황' };
+function tileName(t) { return t.joker ? '조커' : `${COLOR_KO[t.color]} ${t.num}`; }
+function describeMove(v) {
+  const idx = v.table.findIndex(set => set.some(t => lastMoved.has(t.id)));
+  if (idx < 0) return '';
+  const set = v.table[idx];
+  const moved = set.filter(t => lastMoved.has(t.id)).map(tileName).join(', ');
+  const rest = set.filter(t => !lastMoved.has(t.id));
+  if (rest.length === 0) return `${moved} → 따로 두었어요`;
+  const a = analyzeSet(set);
+  const label = a.ok ? (a.kind === 'group' ? `${rest[0].joker ? set.find(t=>!t.joker).num : rest[0].num} 묶음` : `${COLOR_KO[(rest.find(t=>!t.joker)||set.find(t=>!t.joker)).color]} 연속 묶음`) : `${rest.slice(0,3).map(tileName).join(', ')} 옆`;
+  return `${moved} → ${label}에 붙였어요 (${set.length}장)`;
+}
 function toggle(id) { selected.has(id) ? selected.delete(id) : selected.add(id); }
 function flash(msg) { const h = $('hint'); h.textContent = msg; h.className = 'hint bad'; }
 
@@ -357,7 +381,7 @@ $('toRackBtn').addEventListener('click', () => {
   if (!selected.size) return;
   const newIds = new Set(view.newIds);
   const mine = [...selected].filter(id => newIds.has(id));
-  if (mine.length !== selected.size) flash('이번 턴에 손패에서 꺼낸 타일만 되돌릴 수 있습니다.');
+  if (mine.length !== selected.size) flash('이번 차례에 내가 낸 타일만 다시 가져올 수 있어요.');
   if (mine.length) dispatch({ type: 'move', ids: mine, to: { kind: 'rack' } });
   selected.clear(); if (!mine.length) render();
 });
@@ -376,6 +400,12 @@ function renderOver(v) {
   show('over');
 }
 $('againBtn').addEventListener('click', () => { session && session.destroy(); session = null; show('setup'); });
+
+// 도움말
+$('helpBtn').addEventListener('click', () => $('help').classList.remove('hidden'));
+$('helpClose').addEventListener('click', () => { $('help').classList.add('hidden'); try { localStorage.setItem('rummi-help-seen', '1'); } catch {} });
+$('help').addEventListener('click', e => { if (e.target === $('help')) $('helpClose').click(); });
+function maybeShowHelp() { let seen = false; try { seen = !!localStorage.getItem('rummi-help-seen'); } catch {} if (!seen) $('help').classList.remove('hidden'); }
 
 renderSetupRows();
 show('setup');

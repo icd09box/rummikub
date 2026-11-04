@@ -62,7 +62,7 @@ test('턴 검증: 초기 등록 전 테이블 세트 사용 금지', () => {
   const table = ids([T('red', 10), T('blue', 10), T('black', 10)]);
   const rack = [{ ...T('orange', 10), id: 50 }, { ...T('red', 1), id: 51 }];
   const r = validateTurn({ tableBefore: [table], tableAfter: [[...table, rack[0]]], rackBefore: rack, rackAfter: [rack[1]], hasMelded: false });
-  assert.equal(r.ok, false); assert.match(r.reason, /초기 등록 전/);
+  assert.equal(r.ok, false); assert.match(r.reason, /처음 30점/);
 });
 
 test('턴 검증: 등록 후 테이블 재배열 허용', () => {
@@ -77,8 +77,8 @@ test('턴 검증: 아무것도 안 놓음 / 테이블 타일 회수 / 깨진 세
   const table = ids([T('red', 10), T('blue', 10), T('black', 10)]);
   const rack = [{ ...T('red', 1), id: 50 }];
   assert.equal(validateTurn({ tableBefore: [table], tableAfter: [table], rackBefore: rack, rackAfter: rack, hasMelded: true }).ok, false);
-  assert.match(validateTurn({ tableBefore: [table], tableAfter: [table.slice(0, 2)], rackBefore: rack, rackAfter: [rack[0], table[2]], hasMelded: true }).reason, /손패로/);
-  assert.match(validateTurn({ tableBefore: [table], tableAfter: [[...table, rack[0]]], rackBefore: rack, rackAfter: [], hasMelded: true }).reason, /유효하지/);
+  assert.match(validateTurn({ tableBefore: [table], tableAfter: [table.slice(0, 2)], rackBefore: rack, rackAfter: [rack[0], table[2]], hasMelded: true }).reason, /가져올 수 없/);
+  assert.match(validateTurn({ tableBefore: [table], tableAfter: [[...table, rack[0]]], rackBefore: rack, rackAfter: [], hasMelded: true }).reason, /규칙에 안 맞/);
 });
 
 test('canExtend: 미완성 세트에도 붙일 수 있는지', async () => {

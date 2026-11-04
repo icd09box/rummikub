@@ -10,7 +10,7 @@
 <body>
 <header class="topbar">
   <h1>루미큐브</h1>
-  <div><span id="timer" class="timer"></span> <span id="status" class="status"></span></div>
+  <div><span id="timer" class="timer"></span> <span id="status" class="status"></span> <button id="helpBtn" class="mini help" title="게임 방법">?</button></div>
 </header>
 
 <!-- 설정 화면 -->
@@ -34,7 +34,7 @@
     </div>
     <div id="paneHost" class="tabpane hidden">
       <label>내 이름 <input id="hostName" type="text" maxlength="10" placeholder="방장"></label>
-      <p class="muted">방 코드가 발급됩니다. 친구들은 "참가하기"에서 코드를 입력합니다. 각자 자기 기기에서 접속해 플레이합니다.</p>
+      <p class="muted">방 코드가 나와요. 친구에게 코드나 링크를 보내면 각자 자기 폰에서 같이 할 수 있어요.</p>
       <button id="hostBtn" class="primary">방 만들기</button>
     </div>
     <div id="paneJoin" class="tabpane hidden">
@@ -43,15 +43,15 @@
       <button id="joinBtn" class="primary">참가</button>
     </div>
     <details class="rules">
-      <summary>규칙 요약</summary>
+      <summary>게임 방법 (쉬운 설명)</summary>
       <ul>
-        <li>타일 106장(1~13 × 4색 × 2 + 조커 2), 각자 14장으로 시작.</li>
-        <li><b>그룹</b>: 같은 숫자, 다른 색 3~4장. <b>런</b>: 같은 색 연속 숫자 3장 이상(1→13, 순환 없음).</li>
-        <li><b>초기 등록</b>: 자기 손패만으로 합계 30점 이상 세트를 내려놓아야 이후 테이블을 만질 수 있음.</li>
-        <li>턴 종료 시 테이블의 모든 세트가 유효해야 하고, 최소 한 장은 손패에서 나와야 함. 못 놓으면 한 장 뽑기.</li>
-        <li>손패를 먼저 비우면 승리. 다른 사람 남은 타일 합(조커 30)이 승자 점수.</li>
-        <li>타일을 테이블 빈 곳에 끌어다 놓으면 가까운 세트 중 들어갈 수 있는 곳에 자동으로 붙습니다. 일부러 따로 두려면 "새 세트"를 쓰세요.</li>
-        <li>온라인: 턴 제한시간을 넘기면 자동 뽑기. 접속이 끊긴 사람의 차례는 자동 뽑기로 넘어가며 같은 이름으로 다시 들어오면 자리를 되찾음. 방장이 나가면 게임 종료.</li>
+        <li>각자 타일 14장을 받고, 바닥에 <b>묶음</b>을 만들어 내려놓으며 내 타일을 먼저 다 없애면 이겨요.</li>
+        <li><b>묶음은 두 가지</b>: ① 같은 숫자인데 색이 다른 타일 3~4장 (예: 빨강7·파랑7·검정7) ② 같은 색의 이어지는 숫자 3장 이상 (예: 파랑 4·5·6). 13 다음에 1은 안 돼요.</li>
+        <li><b>처음 한 번은</b> 바닥 타일 없이 내 타일만으로 합계 30점 이상 되는 묶음을 내야 해요. 그 다음부터는 바닥 묶음에 끼워 넣거나 다시 짜도 돼요.</li>
+        <li>차례를 끝낼 때 바닥의 모든 묶음이 규칙에 맞아야 하고, 내 타일을 최소 한 장은 냈어야 해요. 낼 게 없으면 <b>못 내면 뽑기</b>로 한 장 받고 넘겨요.</li>
+        <li><b>조커(☺)</b>는 아무 타일 대신 쓸 수 있어요. 끝날 때 손에 남으면 30점 손해.</li>
+        <li>타일을 끌어서 바닥에 놓으면 근처의 맞는 묶음에 <b>알아서 붙어요</b>. 일부러 따로 두려면 "따로 두기"를 쓰세요.</li>
+        <li>온라인: 제한시간이 지나면 자동으로 한 장 뽑아요. 연결이 끊긴 사람 차례는 자동으로 넘어가고, 같은 이름으로 다시 들어오면 자리를 되찾아요. 방장이 나가면 끝나요.</li>
       </ul>
     </details>
   </div>
@@ -66,10 +66,10 @@
     <p id="lobbyStatus" class="muted"></p>
     <p id="turnLimitView" class="muted"></p>
     <div id="hostControls" class="hidden">
-      <label>턴 제한시간
+      <label>한 차례 제한시간
         <select id="turnLimit"><option value="0">없음</option><option value="60">60초</option><option value="120">120초</option></select>
       </label>
-      <button id="addCpuBtn">CPU 추가</button>
+      <button id="addCpuBtn">컴퓨터 추가</button>
       <button id="lobbyStart" class="primary" disabled>게임 시작</button>
     </div>
     <button id="leaveBtn">나가기</button>
@@ -80,8 +80,8 @@
 <section id="handoff" class="screen hidden">
   <div class="card center">
     <h2 id="handoffName"></h2>
-    <p>차례입니다. 다른 사람은 화면을 보지 마세요.</p>
-    <button id="handoffBtn" class="primary">내 손패 보기</button>
+    <p>차례예요. 다른 사람은 화면을 보지 마세요.</p>
+    <button id="handoffBtn" class="primary">내 타일 보기</button>
   </div>
 </section>
 
@@ -89,22 +89,22 @@
 <section id="game" class="screen hidden">
   <aside class="side">
     <div id="players" class="players"></div>
-    <div class="pool">더미 <b id="poolCount"></b>장</div>
+    <div class="pool">남은 타일 <b id="poolCount"></b>장</div>
     <div id="log" class="log"></div>
   </aside>
   <main class="board">
     <div id="table" class="table"></div>
     <div class="actions">
       <div class="group">
-        <button id="autoBtn" class="accent" title="맞는 세트에 자동으로 붙이기">자동 놓기</button>
-        <button id="newSetBtn" title="선택한 타일로 새 세트">새 세트</button>
-        <button id="toRackBtn" title="선택한 타일을 손패로">손패로</button>
-        <button id="resetBtn" title="턴 시작 상태로">되돌리기</button>
-        <button id="sortBtn" title="손패 정렬 방식 전환">정렬: 숫자</button>
+        <button id="autoBtn" class="accent" title="맞는 묶음에 알아서 붙이기">알아서 붙이기</button>
+        <button id="newSetBtn" title="선택한 타일을 따로 두기">따로 두기</button>
+        <button id="toRackBtn" title="선택한 타일을 다시 가져오기">다시 가져오기</button>
+        <button id="resetBtn" title="이번 차례에 한 걸 전부 취소">처음대로</button>
+        <button id="sortBtn" title="내 타일 정렬 방식 바꾸기">숫자순</button>
       </div>
       <div class="group main">
-        <button id="drawBtn">뽑기 / 패스</button>
-        <button id="endBtn" class="primary">턴 종료</button>
+        <button id="drawBtn">못 내면 뽑기</button>
+        <button id="endBtn" class="primary">내 차례 끝</button>
       </div>
     </div>
     <div id="hint" class="hint"></div>
@@ -121,6 +121,21 @@
   </div>
 </section>
 
+<!-- 도움말 -->
+<div id="help" class="modal hidden">
+  <div class="modal-box">
+    <h3>어떻게 하나요?</h3>
+    <ol>
+      <li><b>타일을 끌어서</b> 바닥(초록 영역)에 놓으면 내는 거예요. 맞는 묶음 옆에 놓으면 알아서 붙어요.</li>
+      <li><b>묶음</b>은 같은 숫자·다른 색 3~4장, 또는 같은 색·이어지는 숫자 3장 이상이에요.</li>
+      <li><b>처음 한 번은</b> 내 타일만으로 30점 이상을 내야 해요. 아래 안내문이 지금 몇 점인지 알려줘요.</li>
+      <li>다 냈으면 <b>내 차례 끝</b>. 낼 게 없으면 <b>못 내면 뽑기</b>.</li>
+      <li>꼬였으면 <b>처음대로</b>를 누르면 이번 차례에 한 게 전부 취소돼요.</li>
+      <li>연두색으로 빛나는 타일이 이번 차례에 낸 타일이에요. 빨간 테두리 묶음은 아직 규칙에 안 맞는다는 뜻이에요.</li>
+    </ol>
+    <button id="helpClose" class="primary">알겠어요</button>
+  </div>
+</div>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script type="module" src="js/app.js"></script>
 </body>

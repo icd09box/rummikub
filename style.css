@@ -53,7 +53,8 @@ button.primary { background: var(--accent); color: var(--accent-text); border-co
 .tile.red { color: var(--red); } .tile.blue { color: var(--blue); } .tile.black { color: var(--black); } .tile.orange { color: var(--orange); }
 .tile.joker { color: var(--joker); font-size: 22px; }
 .tile.selected { transform: translateY(-8px); outline: 3px solid var(--accent); }
-.tile.new { box-shadow: 0 0 0 2px var(--accent) inset, 0 1px 2px rgba(0,0,0,.4); }
+.tile.new { box-shadow: 0 0 0 3px var(--accent) inset, 0 0 10px rgba(143,219,36,.7); position: relative; }
+.tile.new::after { content: ''; position: absolute; top: 3px; right: 3px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
 .tile.cpu-hidden { background: #6b7a6c; border-bottom-color: #4b5a4c; color: transparent; }
 
 .scores { margin: 16px auto; border-collapse: collapse; }
@@ -127,3 +128,18 @@ button.primary { background: var(--accent); color: var(--accent-text); border-co
 .table.drop-hover { box-shadow: inset 0 0 0 3px var(--accent); }
 .rack.drop-hover { box-shadow: inset 0 0 0 3px var(--accent); }
 .hint::after { content: ""; }
+
+/* 놓은 곳 강조 */
+@keyframes dropPulse { 0% { box-shadow: 0 0 0 0 rgba(143,219,36,.9); background: rgba(143,219,36,.35); } 100% { box-shadow: 0 0 0 14px rgba(143,219,36,0); background: rgba(0,0,0,.25); } }
+.set.just-dropped { animation: dropPulse 1.2s ease-out; border-color: var(--accent); }
+@keyframes tilePop { 0% { transform: scale(1.35) translateY(-6px); } 100% { transform: scale(1) translateY(0); } }
+.tile.just-moved { animation: tilePop .45s ease-out; z-index: 2; }
+
+/* 도움말 */
+.help { margin-left: 8px; width: 26px; height: 26px; padding: 0; border-radius: 50%; font-weight: 800; }
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; z-index: 2000; padding: 16px; }
+.modal-box { background: var(--panel); border-radius: 12px; padding: 20px; max-width: 440px; width: 100%; max-height: 90vh; overflow: auto; }
+.modal-box h3 { margin-top: 0; }
+.modal-box ol { padding-left: 20px; line-height: 1.5; font-size: 14px; }
+.modal-box li { margin: 6px 0; }
+.modal-box button { width: 100%; margin-top: 8px; }

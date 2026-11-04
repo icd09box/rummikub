@@ -70,8 +70,8 @@ export function endTurn(g) {
   const p = current(g);
   const r = checkTurn(g);
   if (!r.ok) return r;
-  if (!p.hasMelded) { p.hasMelded = true; g.log.push(`${p.name} 초기 등록 ${r.meldValue}점`); }
-  else g.log.push(`${p.name} ${r.placed}장 놓음`);
+  if (!p.hasMelded) { p.hasMelded = true; g.log.push(`${p.name} 처음 30점 내기 성공 (${r.meldValue}점)`); }
+  else g.log.push(`${p.name} ${r.placed}장 냄`);
   if (p.rack.length === 0) return finish(g, p);
   advance(g);
   return { ok: true };
@@ -82,7 +82,7 @@ export function drawTile(g) {
   const p = current(g);
   resetTurn(g);
   if (g.pool.length > 0) { p.rack.push(g.pool.shift()); g.log.push(`${p.name} 한 장 뽑음`); }
-  else g.log.push(`${p.name} 패스 (더미 없음)`);
+  else g.log.push(`${p.name} 넘김 (남은 타일 없음)`);
   if (g.pool.length === 0 && g.players.every(x => x._passedEmpty)) return finishByPenalty(g);
   if (g.pool.length === 0) p._passedEmpty = true;
   advance(g);
@@ -110,7 +110,7 @@ function finishByPenalty(g) {
   g.phase = 'over'; g.winner = winner.id;
   for (const p of g.players) p.score = -(rackPenalty(p.rack) - rackPenalty(winner.rack));
   winner.score = g.players.filter(p => p !== winner).reduce((s, p) => s - p.score, 0);
-  g.log.push(`더미 소진 — ${winner.name} 최저 점수로 승리`);
+  g.log.push(`남은 타일 없음 — ${winner.name} 타일 점수가 가장 낮아 승리`);
   return { ok: true, over: true };
 }
 

@@ -125,24 +125,24 @@ export function validateTurn({ tableBefore, tableAfter, rackBefore, rackAfter, h
   const beforeIds = [...tableBefore.flat(), ...rackBefore].map(t => t.id).sort();
   const afterIds = [...tableAfter.flat(), ...rackAfter].map(t => t.id).sort();
   if (beforeIds.length !== afterIds.length || beforeIds.some((v, i) => v !== afterIds[i])) {
-    return { ok: false, reason: '타일 개수가 맞지 않습니다.', placed: 0 };
+    return { ok: false, reason: '타일 개수가 맞지 않아요.', placed: 0 };
   }
   // 2. 테이블에서 손패로 되돌아간 타일 금지
   const tableBeforeIds = idSet(tableBefore.flat());
   if (rackAfter.some(t => tableBeforeIds.has(t.id))) {
-    return { ok: false, reason: '테이블의 타일을 손패로 가져올 수 없습니다.', placed: 0 };
+    return { ok: false, reason: '바닥에 있던 타일은 내 쪽으로 가져올 수 없어요.', placed: 0 };
   }
   // 3. 최소 1장 내려놓기
   const rackAfterIds = idSet(rackAfter);
   const placedTiles = rackBefore.filter(t => !rackAfterIds.has(t.id));
   if (placedTiles.length === 0) {
-    return { ok: false, reason: '최소 한 장은 내려놓아야 합니다.', placed: 0 };
+    return { ok: false, reason: '타일을 한 장도 안 냈어요. 낼 게 없으면 "못 내면 뽑기"를 누르세요.', placed: 0 };
   }
   // 4. 모든 세트 유효
   for (const set of tableAfter) {
     if (set.length === 0) continue;
     if (!isValidSet(set)) {
-      return { ok: false, reason: '유효하지 않은 세트가 있습니다.', placed: placedTiles.length };
+      return { ok: false, reason: '빨간 테두리 묶음이 규칙에 안 맞아요. (같은 숫자·다른 색 3~4장, 또는 같은 색·이어지는 숫자 3장 이상)', placed: placedTiles.length };
     }
   }
   // 5. 초기 등록: 기존 세트는 그대로, 새 세트는 전부 내 손패 타일, 합계 ≥ 30
@@ -158,16 +158,16 @@ export function validateTurn({ tableBefore, tableAfter, rackBefore, rackAfter, h
       } else {
         const matched = tableBefore.find(b => sameTiles(b, set));
         if (!matched) {
-          return { ok: false, reason: '초기 등록 전에는 테이블 세트를 건드릴 수 없습니다.', placed: placedTiles.length };
+          return { ok: false, reason: '처음 30점을 내기 전에는 바닥 묶음을 건드릴 수 없어요. 내 타일만으로 내세요.', placed: placedTiles.length };
         }
         untouchedBefore.push(matched);
       }
     }
     if (untouchedBefore.length !== tableBefore.length) {
-      return { ok: false, reason: '초기 등록 전에는 테이블 세트를 건드릴 수 없습니다.', placed: placedTiles.length };
+      return { ok: false, reason: '처음 30점을 내기 전에는 바닥 묶음을 건드릴 수 없어요. 내 타일만으로 내세요.', placed: placedTiles.length };
     }
     if (meldValue < INITIAL_MELD_MIN) {
-      return { ok: false, reason: `초기 등록은 ${INITIAL_MELD_MIN}점 이상이어야 합니다. (현재 ${meldValue}점)`, placed: placedTiles.length, meldValue };
+      return { ok: false, reason: `처음 낼 때는 내 타일만으로 합계 ${INITIAL_MELD_MIN}점 이상이어야 해요. (지금 ${meldValue}점)`, placed: placedTiles.length, meldValue };
     }
     return { ok: true, placed: placedTiles.length, meldValue };
   }

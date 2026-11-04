@@ -94,7 +94,7 @@ export class GameHost {
         if (!Array.isArray(a.ids) || !a.to) return { ok: false, error: '잘못된 요청' };
         if (a.to.kind === 'rack') {
           const snap = new Set(g.snapshot.rack.map(t => t.id));
-          if (!a.ids.every(id => snap.has(id))) return { ok: false, error: '이번 턴에 손패에서 꺼낸 타일만 되돌릴 수 있습니다.' };
+          if (!a.ids.every(id => snap.has(id))) return { ok: false, error: '이번 차례에 내가 낸 타일만 다시 가져올 수 있어요.' };
         }
         if (a.to.kind === 'set' && !(a.to.index >= 0 && a.to.index < g.table.length)) return { ok: false, error: '잘못된 세트' };
         moveTiles(g, a.ids, a.to); break;
@@ -128,7 +128,7 @@ export class GameHost {
     const seat = this.game.turn;
     this._timer = this.setTimeout(() => {
       if (this.game.phase === 'playing' && this.game.turn === seat) {
-        this.game.log.push(`${current(this.game).name} 시간 초과 — 한 장 뽑음`);
+        this.game.log.push(`${current(this.game).name} 시간이 지나 자동으로 한 장 뽑음`);
         drawTile(this.game); this.afterChange(true);
       }
     }, this.turnLimit * 1000);
