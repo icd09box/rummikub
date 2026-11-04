@@ -1,5 +1,5 @@
 import { createGame, current, moveTiles, endTurn, drawTile, resetTurn, MIN_PLAYERS, MAX_PLAYERS, runCpuTurn } from './game.js';
-import { analyzeSet, COLORS } from './rules.js';
+import { analyzeSet, COLORS, canExtend } from './rules.js';
 import { buildView } from './view.js';
 import { HostSession, ClientSession, makeToken } from './net.js';
 
@@ -205,8 +205,27 @@ document.addEventListener('pointerup', e => {
     selected.clear(); return dispatch({ type: 'move', ids: mine, to: { kind: 'rack' } });
   }
   selected.clear();
-  dispatch({ type: 'move', ids: d.ids, to: target });
+  dispatch({ type: 'move', ids: d.ids, to: target.kind === 'new' ? smartTarget(d.ids, e.clientX, e.clientY) : target });
 });
+
+/** 빈 곳에 놓았을 때: 붙을 수 있는 세트 중 가장 가까운 것, 없으면 새 세트 */
+function smartTarget(ids, x, y) {
+  const byId = new Map([...view.table.flat(), ...view.rack].map(t => [t.id, t]));
+  const tiles = ids.map(id => byId.get(id)).filter(Boolean);
+  const idSet = new Set(ids);
+  let best = null, bestDist = Infinity;
+  view.table.forEach((set, idx) => {
+    const rest = set.filter(t => !idSet.has(t.id));
+    if (rest.length === 0 || !canExtend(rest, tiles)) return;
+    const el = $('table').children[idx]; if (!el) return;
+    const r = el.getBoundingClientRect();
+    const dx = Math.max(r.left - x, 0, x - r.right), dy = Math.max(r.top - y, 0, y - r.bottom);
+    const dist = Math.hypot(dx, dy);
+    if (dist < bestDist) { bestDist = dist; best = idx; }
+  });
+  if (best === null || bestDist > 160) return { kind: 'new' };
+  return { kind: 'set', index: best };
+}
 document.addEventListener('pointercancel', () => { if (drag) { drag.ghost && drag.ghost.remove(); drag.source.classList.remove('dragging'); drag = null; document.body.classList.remove('is-dragging'); } });
 
 let suppressClick = false;
@@ -286,7 +305,7 @@ function render(cpuView = false) {
   }
   for (const id of ['newSetBtn', 'toRackBtn', 'resetBtn', 'drawBtn', 'endBtn']) $(id).disabled = !myTurn;
   $('sortBtn').disabled = cpuView; $('sortBtn').textContent = sortMode === 'num' ? '정렬: 숫자' : '정렬: 색';
-  $('newSetBtn').disabled = $('toRackBtn').disabled = !myTurn || selected.size === 0;
+  $('newSetBtn').disabled = $('toRackBtn').disabled = $('autoBtn').disabled = !myTurn || selected.size === 0;
   if (!myTurn) selected.clear();
   startCountdown(v.deadline);
 }
@@ -314,6 +333,26 @@ function onSetClick(e, idx) {
   dispatch({ type: 'move', ids: [...selected], to: { kind: 'set', index: idx } }); selected.clear();
 }
 $('newSetBtn').addEventListener('click', () => { if (!selected.size) return; dispatch({ type: 'move', ids: [...selected], to: { kind: 'new' } }); selected.clear(); });
+$('autoBtn').addEventListener('click', () => {
+  if (!selected.size) return;
+  const ids = [...selected]; selected.clear();
+  dispatch({ type: 'move', ids, to: smartTargetAny(ids) });
+});
+/** 거리 무시: 붙을 수 있는 세트 중 '이번 턴에 바뀐 세트' 우선, 없으면 새 세트 */
+function smartTargetAny(ids) {
+  const byId = new Map([...view.table.flat(), ...view.rack].map(t => [t.id, t]));
+  const tiles = ids.map(id => byId.get(id)).filter(Boolean);
+  const idSet = new Set(ids);
+  let fallback = null;
+  for (let idx = 0; idx < view.table.length; idx++) {
+    const rest = view.table[idx].filter(t => !idSet.has(t.id));
+    if (rest.length === 0 || !canExtend(rest, tiles)) continue;
+    const changed = !view.snapshotSetKeys.includes(view.table[idx].map(t => t.id).sort().join(','));
+    if (changed) return { kind: 'set', index: idx };
+    if (fallback === null) fallback = idx;
+  }
+  return fallback === null ? { kind: 'new' } : { kind: 'set', index: fallback };
+}
 $('toRackBtn').addEventListener('click', () => {
   if (!selected.size) return;
   const newIds = new Set(view.newIds);

@@ -80,3 +80,15 @@ test('턴 검증: 아무것도 안 놓음 / 테이블 타일 회수 / 깨진 세
   assert.match(validateTurn({ tableBefore: [table], tableAfter: [table.slice(0, 2)], rackBefore: rack, rackAfter: [rack[0], table[2]], hasMelded: true }).reason, /손패로/);
   assert.match(validateTurn({ tableBefore: [table], tableAfter: [[...table, rack[0]]], rackBefore: rack, rackAfter: [], hasMelded: true }).reason, /유효하지/);
 });
+
+test('canExtend: 미완성 세트에도 붙일 수 있는지', async () => {
+  const { canExtend } = await import('../js/rules.js');
+  assert.ok(canExtend([T('red', 5)], [T('red', 6)]));            // 런 진행 중
+  assert.ok(canExtend([T('red', 5), T('red', 7)], [T('red', 6)]));
+  assert.equal(canExtend([T('red', 5)], [T('red', 7)]), false);   // 빈칸, 조커 없음
+  assert.ok(canExtend([T('red', 5), J()], [T('red', 7)]));        // 조커가 6
+  assert.ok(canExtend([T('red', 5)], [T('blue', 5)]));            // 그룹 진행 중
+  assert.equal(canExtend([T('red', 5)], [T('red', 5)]), false);
+  assert.equal(canExtend([T('red', 5), T('blue', 5), T('black', 5), T('orange', 5)], [J()]), false);
+  assert.equal(canExtend([T('red', 5), T('red', 6)], [T('blue', 7)]), false);
+});

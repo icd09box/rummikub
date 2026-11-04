@@ -22,6 +22,7 @@ select, input { font: inherit; padding: 6px 8px; border-radius: 6px; border: 1px
 button { font: inherit; padding: 8px 14px; border-radius: 8px; border: 1px solid #5a6e5c; background: var(--panel2); color: var(--text); cursor: pointer; }
 button:hover { filter: brightness(1.1); }
 button:disabled { opacity: .45; cursor: default; }
+button.accent { border-color: var(--accent); color: var(--accent); }
 button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 700; }
 .rules { margin-top: 16px; color: var(--muted); font-size: 14px; }
 .rules li { margin: 4px 0; }

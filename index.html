@@ -50,6 +50,7 @@
         <li><b>초기 등록</b>: 자기 손패만으로 합계 30점 이상 세트를 내려놓아야 이후 테이블을 만질 수 있음.</li>
         <li>턴 종료 시 테이블의 모든 세트가 유효해야 하고, 최소 한 장은 손패에서 나와야 함. 못 놓으면 한 장 뽑기.</li>
         <li>손패를 먼저 비우면 승리. 다른 사람 남은 타일 합(조커 30)이 승자 점수.</li>
+        <li>타일을 테이블 빈 곳에 끌어다 놓으면 가까운 세트 중 들어갈 수 있는 곳에 자동으로 붙습니다. 일부러 따로 두려면 "새 세트"를 쓰세요.</li>
         <li>온라인: 턴 제한시간을 넘기면 자동 뽑기. 접속이 끊긴 사람의 차례는 자동 뽑기로 넘어가며 같은 이름으로 다시 들어오면 자리를 되찾음. 방장이 나가면 게임 종료.</li>
       </ul>
     </details>
@@ -95,6 +96,7 @@
     <div id="table" class="table"></div>
     <div class="actions">
       <div class="group">
+        <button id="autoBtn" class="accent" title="맞는 세트에 자동으로 붙이기">자동 놓기</button>
         <button id="newSetBtn" title="선택한 타일로 새 세트">새 세트</button>
         <button id="toRackBtn" title="선택한 타일을 손패로">손패로</button>
         <button id="resetBtn" title="턴 시작 상태로">되돌리기</button>

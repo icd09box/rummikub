@@ -173,3 +173,26 @@ export function validateTurn({ tableBefore, tableAfter, rackBefore, rackAfter, h
   }
   return { ok: true, placed: placedTiles.length };
 }
+
+/**
+ * 세트에 타일들을 더했을 때 '앞으로 유효한 세트가 될 수 있는가' (자동 붙이기용).
+ * 완성 여부가 아니라 호환성만 본다: 같은 숫자·다른 색(≤4) 또는 같은 색·다른 숫자·빈칸≤조커 수.
+ */
+export function canExtend(set, tiles) {
+  const all = [...set, ...tiles];
+  if (all.length > 13) return false;
+  const real = all.filter(t => !t.joker);
+  const jokers = all.length - real.length;
+  if (real.length === 0) return true;
+  // 그룹 가능성
+  const nums = new Set(real.map(t => t.num));
+  const colors = new Set(real.map(t => t.color));
+  if (nums.size === 1 && colors.size === real.length && all.length <= 4) return true;
+  // 런 가능성
+  if (colors.size === 1 && nums.size === real.length) {
+    const sorted = [...nums].sort((a, b) => a - b);
+    const gaps = (sorted[sorted.length - 1] - sorted[0] + 1) - sorted.length;
+    return gaps <= jokers;
+  }
+  return false;
+}
