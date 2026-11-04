@@ -321,9 +321,8 @@ function render(cpuView = false) {
     hint.textContent = r.ok ? `좋아요! "내 차례 끝"을 누르세요 (${r.placed}장 냄${r.meldValue != null ? `, 처음 내기 ${r.meldValue}점` : ''})` : r.reason;
     hint.className = 'hint ' + (r.ok ? 'good' : 'bad');
   }
-  for (const id of ['newSetBtn', 'toRackBtn', 'resetBtn', 'drawBtn', 'endBtn']) $(id).disabled = !myTurn;
+  for (const id of ['resetBtn', 'drawBtn', 'endBtn']) $(id).disabled = !myTurn;
   $('sortBtn').disabled = cpuView; $('sortBtn').textContent = sortMode === 'num' ? '숫자순' : '색깔순';
-  $('newSetBtn').disabled = $('toRackBtn').disabled = $('autoBtn').disabled = !myTurn || selected.size === 0;
   if (!myTurn) selected.clear();
   startCountdown(v.deadline);
 }
@@ -343,26 +342,13 @@ function startCountdown(deadline) {
 function renderSelectionBar(myTurn) {
   const bar = $('selbar');
   if (!myTurn || selected.size === 0) { bar.classList.add('hidden'); return; }
-  const newIds = new Set(view.newIds);
-  const onTable = new Set(view.table.flat().map(t => t.id));
-  const ids = [...selected];
-  const allMine = ids.every(id => newIds.has(id));
-  const anyOnTable = ids.some(id => onTable.has(id));
   const byId = new Map([...view.table.flat(), ...view.rack].map(t => [t.id, t]));
+  const ids = [...selected];
   const names = ids.slice(0, 3).map(id => tileName(byId.get(id))).join(', ') + (ids.length > 3 ? ` 외 ${ids.length - 3}장` : '');
-  bar.innerHTML = `<span class="sel-label">${esc(names)} 선택</span>
-    <button data-act="auto" class="accent">붙이기</button>
-    <button data-act="new">따로 두기</button>
-    ${anyOnTable && allMine ? '<button data-act="rack">다시 가져오기</button>' : ''}
-    <button data-act="cancel" class="ghost">취소</button>`;
+  bar.innerHTML = `<span class="sel-label">${esc(names)} 선택됨 — 끌어서 옮기세요. 더 누르면 같이 옮겨요.</span>
+    <button data-act="cancel" class="ghost">선택 해제</button>`;
   bar.classList.remove('hidden');
-  bar.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
-    const act = b.dataset.act; const ids = [...selected]; selected.clear();
-    if (act === 'auto') dispatch({ type: 'move', ids, to: smartTargetAny(ids) });
-    else if (act === 'new') dispatch({ type: 'move', ids, to: { kind: 'new' } });
-    else if (act === 'rack') dispatch({ type: 'move', ids, to: { kind: 'rack' } });
-    else render();
-  }));
+  bar.querySelector('[data-act="cancel"]').addEventListener('click', () => { selected.clear(); render(); });
 }
 const COLOR_KO = { red: '빨강', blue: '파랑', black: '검정', orange: '주황' };
 function tileName(t) { return t.joker ? '조커' : `${COLOR_KO[t.color]} ${t.num}`; }
@@ -387,35 +373,6 @@ function onSetClick(e, idx) {
   if (selected.size === 0) return;
   dispatch({ type: 'move', ids: [...selected], to: { kind: 'set', index: idx } }); selected.clear();
 }
-$('newSetBtn').addEventListener('click', () => { if (!selected.size) return; dispatch({ type: 'move', ids: [...selected], to: { kind: 'new' } }); selected.clear(); });
-$('autoBtn').addEventListener('click', () => {
-  if (!selected.size) return;
-  const ids = [...selected]; selected.clear();
-  dispatch({ type: 'move', ids, to: smartTargetAny(ids) });
-});
-/** 거리 무시: 붙을 수 있는 세트 중 '이번 턴에 바뀐 세트' 우선, 없으면 새 세트 */
-function smartTargetAny(ids) {
-  const byId = new Map([...view.table.flat(), ...view.rack].map(t => [t.id, t]));
-  const tiles = ids.map(id => byId.get(id)).filter(Boolean);
-  const idSet = new Set(ids);
-  let fallback = null;
-  for (let idx = 0; idx < view.table.length; idx++) {
-    const rest = view.table[idx].filter(t => !idSet.has(t.id));
-    if (rest.length === 0 || !canExtend(rest, tiles)) continue;
-    const changed = !view.snapshotSetKeys.includes(view.table[idx].map(t => t.id).sort().join(','));
-    if (changed) return { kind: 'set', index: idx };
-    if (fallback === null) fallback = idx;
-  }
-  return fallback === null ? { kind: 'new' } : { kind: 'set', index: fallback };
-}
-$('toRackBtn').addEventListener('click', () => {
-  if (!selected.size) return;
-  const newIds = new Set(view.newIds);
-  const mine = [...selected].filter(id => newIds.has(id));
-  if (mine.length !== selected.size) flash('이번 차례에 내가 낸 타일만 다시 가져올 수 있어요.');
-  if (mine.length) dispatch({ type: 'move', ids: mine, to: { kind: 'rack' } });
-  selected.clear(); if (!mine.length) render();
-});
 $('resetBtn').addEventListener('click', () => { selected.clear(); dispatch({ type: 'reset' }); });
 $('sortBtn').addEventListener('click', () => { sortMode = sortMode === 'num' ? 'color' : 'num'; render(); });
 $('drawBtn').addEventListener('click', () => { selected.clear(); dispatch({ type: 'draw' }); });
