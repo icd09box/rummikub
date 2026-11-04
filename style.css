@@ -143,3 +143,14 @@ button.primary { background: var(--accent); color: var(--accent-text); border-co
 .modal-box ol { padding-left: 20px; line-height: 1.5; font-size: 14px; }
 .modal-box li { margin: 6px 0; }
 .modal-box button { width: 100%; margin-top: 8px; }
+
+/* 선택 컨텍스트 바 */
+.selbar { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; padding: 6px 10px; background: #243a27; border-top: 2px solid var(--accent); }
+.selbar .sel-label { font-size: 13px; color: var(--accent); margin-right: 4px; }
+.selbar button { padding: 7px 12px; font-size: 13px; }
+.selbar button.ghost { background: transparent; border-color: transparent; color: var(--muted); }
+.is-dragging .rack, .is-dragging .actions, .is-dragging .hint, .is-dragging .selbar { box-shadow: inset 0 0 0 3px rgba(143,219,36,.5); }
+@media (max-width: 720px) {
+  .selbar { padding: 6px 8px; }
+  .selbar .sel-label { width: 100%; }
+}

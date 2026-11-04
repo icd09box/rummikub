@@ -171,7 +171,9 @@ let drag = null;
 function attachDrag(el, id) {
   el.addEventListener('pointerdown', e => {
     if (e.button !== undefined && e.button !== 0) return;
-    drag = { id, startX: e.clientX, startY: e.clientY, moved: false, ghost: null, pointerId: e.pointerId, source: el };
+    const srcSet = el.closest('.set');
+    const fromSet = srcSet ? [...$('table').children].indexOf(srcSet) : -1;
+    drag = { id, startX: e.clientX, startY: e.clientY, moved: false, ghost: null, pointerId: e.pointerId, source: el, fromSet };
   });
 }
 document.addEventListener('pointermove', e => {
@@ -204,6 +206,7 @@ document.addEventListener('pointerup', e => {
   d.ghost && d.ghost.remove(); d.source.classList.remove('dragging');
   const target = dropTargetAt(e.clientX, e.clientY);
   if (!target) return render();
+  if (target.kind === 'set' && target.index === d.fromSet) return render();
   if (target.kind === 'rack') {
     const newIds = new Set(view.newIds);
     const mine = d.ids.filter(id => newIds.has(id));
@@ -212,16 +215,17 @@ document.addEventListener('pointerup', e => {
     selected.clear(); return dispatch({ type: 'move', ids: mine, to: { kind: 'rack' } });
   }
   selected.clear();
-  dispatch({ type: 'move', ids: d.ids, to: target.kind === 'new' ? smartTarget(d.ids, e.clientX, e.clientY) : target });
+  dispatch({ type: 'move', ids: d.ids, to: target.kind === 'new' ? smartTarget(d.ids, e.clientX, e.clientY, d.fromSet) : target });
 });
 
 /** 빈 곳에 놓았을 때: 붙을 수 있는 세트 중 가장 가까운 것, 없으면 새 세트 */
-function smartTarget(ids, x, y) {
+function smartTarget(ids, x, y, excludeIdx = -1) {
   const byId = new Map([...view.table.flat(), ...view.rack].map(t => [t.id, t]));
   const tiles = ids.map(id => byId.get(id)).filter(Boolean);
   const idSet = new Set(ids);
   let best = null, bestDist = Infinity;
   view.table.forEach((set, idx) => {
+    if (idx === excludeIdx) return;
     const rest = set.filter(t => !idSet.has(t.id));
     if (rest.length === 0 || !canExtend(rest, tiles)) return;
     const el = $('table').children[idx]; if (!el) return;
@@ -243,6 +247,8 @@ function autoScroll(y) {
   if (y < r.top + 40) t.scrollTop -= 12; else if (y > r.bottom - 40) t.scrollTop += 12;
 }
 function dropTargetAt(x, y) {
+  const tr = $('table').getBoundingClientRect();
+  if (y > tr.bottom) return { kind: 'rack' };          // 바닥 아래는 전부 '내 타일로'
   const el = document.elementFromPoint(x, y);
   if (!el) return null;
   const set = el.closest('.set');
@@ -305,6 +311,7 @@ function render(cpuView = false) {
   else if (myTurn) $('status').textContent = `내 차례${me && !me.hasMelded ? ' · 처음엔 내 타일만으로 30점 이상 내야 해요' : ''}`;
   else $('status').textContent = `${v.currentName}의 차례예요. 기다려 주세요`;
 
+  renderSelectionBar(myTurn);
   const hint = $('hint');
   const freshNote = Date.now() - lastMovedAt < 1500 && lastMoved.size ? describeMove(v) : '';
   if (freshNote) { hint.textContent = freshNote; hint.className = 'hint good'; }
@@ -333,6 +340,30 @@ function startCountdown(deadline) {
   tick(); countdownTimer = setInterval(tick, 250);
 }
 
+function renderSelectionBar(myTurn) {
+  const bar = $('selbar');
+  if (!myTurn || selected.size === 0) { bar.classList.add('hidden'); return; }
+  const newIds = new Set(view.newIds);
+  const onTable = new Set(view.table.flat().map(t => t.id));
+  const ids = [...selected];
+  const allMine = ids.every(id => newIds.has(id));
+  const anyOnTable = ids.some(id => onTable.has(id));
+  const byId = new Map([...view.table.flat(), ...view.rack].map(t => [t.id, t]));
+  const names = ids.slice(0, 3).map(id => tileName(byId.get(id))).join(', ') + (ids.length > 3 ? ` 외 ${ids.length - 3}장` : '');
+  bar.innerHTML = `<span class="sel-label">${esc(names)} 선택</span>
+    <button data-act="auto" class="accent">붙이기</button>
+    <button data-act="new">따로 두기</button>
+    ${anyOnTable && allMine ? '<button data-act="rack">다시 가져오기</button>' : ''}
+    <button data-act="cancel" class="ghost">취소</button>`;
+  bar.classList.remove('hidden');
+  bar.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    const act = b.dataset.act; const ids = [...selected]; selected.clear();
+    if (act === 'auto') dispatch({ type: 'move', ids, to: smartTargetAny(ids) });
+    else if (act === 'new') dispatch({ type: 'move', ids, to: { kind: 'new' } });
+    else if (act === 'rack') dispatch({ type: 'move', ids, to: { kind: 'rack' } });
+    else render();
+  }));
+}
 const COLOR_KO = { red: '빨강', blue: '파랑', black: '검정', orange: '주황' };
 function tileName(t) { return t.joker ? '조커' : `${COLOR_KO[t.color]} ${t.num}`; }
 function describeMove(v) {
