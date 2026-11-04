@@ -1,6 +1,7 @@
 import { createGame, current, moveTiles, endTurn, drawTile, resetTurn, MIN_PLAYERS, MAX_PLAYERS, runCpuTurn } from './game.js';
 import { analyzeSet, COLORS, canExtend } from './rules.js';
 import { buildView } from './view.js';
+import { planCpuTurn } from './cpu.js';
 import { HostSession, ClientSession, makeToken } from './net.js';
 
 const $ = id => document.getElementById(id);
@@ -16,6 +17,7 @@ let selected = new Set();
 let lastHumanShown = -1;
 let sortMode = 'num';
 let countdownTimer = null;
+let suggestIds = new Set();  // 추천으로 깜빡일 타일
 let lastMoved = new Set();   // 직전 조작으로 옮긴 타일 id (놓은 곳 강조용)
 let lastMovedAt = 0;
 
@@ -138,6 +140,7 @@ function localDispatch(a) {
 }
 
 function dispatch(a) {
+  suggestIds.clear();
   if (a.type === 'move' && a.to.kind !== 'rack') { lastMoved = new Set(a.ids); lastMovedAt = Date.now(); }
   else if (a.type !== 'move') lastMoved.clear();
   if (mode === 'local') return localDispatch(a);
@@ -159,6 +162,8 @@ function tileEl(t, opts = {}) {
   el.textContent = t.joker ? '☺' : t.num;
   if (selected.has(t.id)) el.classList.add('selected');
   if (opts.isNew) el.classList.add('new');
+  if (opts.lastPlaced) el.classList.add('last-placed');
+  if (suggestIds.has(t.id)) el.classList.add('suggest');
   if (opts.justMoved) el.classList.add('just-moved');
   if (opts.hidden) el.classList.add('cpu-hidden');
   el.dataset.id = t.id;
@@ -277,7 +282,17 @@ function render(cpuView = false) {
   const v = view;
   const myTurn = !cpuView && v.seat === v.turn;
   const newIds = new Set(v.newIds);
+  const lastIds = new Set(v.lastTurn && v.lastTurn.seat !== v.seat ? v.lastTurn.placed.map(t => t.id) : []);
 
+  const banner = $('lastTurn');
+  const lt = v.lastTurn;
+  if (lt && lt.seat !== v.seat) {
+    if (lt.placed.length) {
+      const names = lt.placed.map(tileName).join(', ');
+      banner.innerHTML = `<b>${esc(lt.name)}</b>이(가) 방금 냄: <span class="lt-tiles">${esc(names)}</span> (${lt.placed.length}장)${lt.meldValue != null ? ` · 처음 30점 내기 ${lt.meldValue}점` : ''}${lt.rearranged ? ' · 바닥 묶음도 다시 짬' : ''}`;
+    } else banner.innerHTML = `<b>${esc(lt.name)}</b>이(가) ${lt.drew ? '못 내서 한 장 뽑음' : '넘김'}`;
+    banner.classList.remove('hidden');
+  } else banner.classList.add('hidden');
   const table = $('table'); table.innerHTML = '';
   v.table.forEach((set, idx) => {
     const a = analyzeSet(set);
@@ -286,7 +301,7 @@ function render(cpuView = false) {
     if (!v.snapshotSetKeys.includes(set.map(t => t.id).sort().join(','))) el.classList.add('changed');
     const fresh = Date.now() - lastMovedAt < 1500;
     if (fresh && set.some(t => lastMoved.has(t.id))) el.classList.add('just-dropped');
-    (a.ok ? a.ordered : set).forEach(t => el.appendChild(tileEl(t, { isNew: newIds.has(t.id), draggable: myTurn, justMoved: fresh && lastMoved.has(t.id) })));
+    (a.ok ? a.ordered : set).forEach(t => el.appendChild(tileEl(t, { isNew: newIds.has(t.id), lastPlaced: lastIds.has(t.id), draggable: myTurn, justMoved: fresh && lastMoved.has(t.id) })));
     if (myTurn) el.addEventListener('click', e => onSetClick(e, idx));
     table.appendChild(el);
   });
@@ -322,6 +337,8 @@ function render(cpuView = false) {
     hint.className = 'hint ' + (r.ok ? 'good' : 'bad');
   }
   for (const id of ['resetBtn', 'drawBtn', 'endBtn']) $(id).disabled = !myTurn;
+  $('suggestBtn').classList.toggle('hidden', mode !== 'local');
+  $('suggestBtn').disabled = !myTurn;
   $('sortBtn').disabled = cpuView; $('sortBtn').textContent = sortMode === 'num' ? '숫자순' : '색깔순';
   if (!myTurn) selected.clear();
   startCountdown(v.deadline);
@@ -373,6 +390,32 @@ function onSetClick(e, idx) {
   if (selected.size === 0) return;
   dispatch({ type: 'move', ids: [...selected], to: { kind: 'set', index: idx } }); selected.clear();
 }
+$('suggestBtn').addEventListener('click', () => {
+  const v = view; const me = v.players[v.seat];
+  const plan = planCpuTurn({ table: v.table, rack: v.rack, hasMelded: me.hasMelded });
+  const hint = $('hint');
+  if (plan.action === 'draw') {
+    suggestIds.clear(); render();
+    hint.textContent = me.hasMelded ? '지금 낼 수 있는 조합이 안 보여요. "못 내면 뽑기"를 누르세요.' : '내 타일만으로 30점을 못 만들어요. "못 내면 뽑기"를 누르세요.';
+    hint.className = 'hint'; return;
+  }
+  const rackIds = new Set(v.rack.map(t => t.id));
+  const beforeKeys = new Set(v.table.map(set => set.map(t => t.id).sort().join(',')));
+  const parts = [];
+  suggestIds = new Set();
+  for (const set of plan.table) {
+    const mine = set.filter(t => rackIds.has(t.id));
+    if (!mine.length) continue;
+    mine.forEach(t => suggestIds.add(t.id));
+    const rest = set.filter(t => !rackIds.has(t.id));
+    const names = mine.map(tileName).join(', ');
+    if (rest.length === 0) parts.push(`${names} → 새 묶음`);
+    else parts.push(`${names} → ${rest.slice(0, 2).map(tileName).join(', ')} 묶음에`);
+  }
+  render();
+  hint.textContent = '추천: ' + parts.join(' / ') + ' (깜빡이는 타일을 끌어다 놓으세요)';
+  hint.className = 'hint good';
+});
 $('resetBtn').addEventListener('click', () => { selected.clear(); dispatch({ type: 'reset' }); });
 $('sortBtn').addEventListener('click', () => { sortMode = sortMode === 'num' ? 'color' : 'num'; render(); });
 $('drawBtn').addEventListener('click', () => { selected.clear(); dispatch({ type: 'draw' }); });

@@ -154,3 +154,15 @@ button.primary { background: var(--accent); color: var(--accent-text); border-co
   .selbar { padding: 6px 8px; }
   .selbar .sel-label { width: 100%; }
 }
+
+/* 직전 차례에 상대가 낸 타일 */
+:root { --last: #ffd54a; }
+.last-turn { padding: 6px 14px; background: #3d3a1c; color: #fff3b0; font-size: 13px; border-bottom: 1px solid #5a5520; }
+.last-turn .lt-tiles { color: var(--last); font-weight: 700; }
+.tile.last-placed { box-shadow: 0 0 0 3px var(--last) inset, 0 0 8px rgba(255,213,74,.6); position: relative; }
+.tile.last-placed::after { content: ''; position: absolute; top: 3px; left: 3px; width: 7px; height: 7px; border-radius: 50%; background: var(--last); }
+@media (max-width: 720px) { .last-turn { padding: 4px 10px; font-size: 12px; } }
+
+/* 추천 타일 */
+@keyframes suggestBlink { 0%, 100% { box-shadow: 0 0 0 3px var(--accent), 0 0 14px rgba(143,219,36,.9); transform: translateY(-4px); } 50% { box-shadow: 0 0 0 1px var(--accent); transform: translateY(0); } }
+.tile.suggest { animation: suggestBlink .9s ease-in-out infinite; }

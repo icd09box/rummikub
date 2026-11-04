@@ -70,8 +70,12 @@ export function endTurn(g) {
   const p = current(g);
   const r = checkTurn(g);
   if (!r.ok) return r;
-  if (!p.hasMelded) { p.hasMelded = true; g.log.push(`${p.name} 처음 30점 내기 성공 (${r.meldValue}점)`); }
-  else g.log.push(`${p.name} ${r.placed}장 냄`);
+  const placedIds = new Set(g.snapshot.rack.filter(t => !p.rack.includes(t)).map(t => t.id));
+  const placed = g.table.flat().filter(t => placedIds.has(t.id));
+  const names = placed.map(tileLabel).join(', ');
+  g.lastTurn = { seat: p.id, name: p.name, placed, meldValue: p.hasMelded ? null : r.meldValue, rearranged: tableRearranged(g.snapshot.table, g.table, placedIds) };
+  if (!p.hasMelded) { p.hasMelded = true; g.log.push(`${p.name} 처음 30점 내기 성공 (${r.meldValue}점): ${names}`); }
+  else g.log.push(`${p.name} 냄: ${names}`);
   if (p.rack.length === 0) return finish(g, p);
   advance(g);
   return { ok: true };
@@ -81,6 +85,7 @@ export function endTurn(g) {
 export function drawTile(g) {
   const p = current(g);
   resetTurn(g);
+  g.lastTurn = { seat: p.id, name: p.name, placed: [], drew: g.pool.length > 0 };
   if (g.pool.length > 0) { p.rack.push(g.pool.shift()); g.log.push(`${p.name} 한 장 뽑음`); }
   else g.log.push(`${p.name} 넘김 (남은 타일 없음)`);
   if (g.pool.length === 0 && g.players.every(x => x._passedEmpty)) return finishByPenalty(g);
@@ -89,6 +94,14 @@ export function drawTile(g) {
   return { ok: true };
 }
 
+const COLOR_KO = { red: '빨강', blue: '파랑', black: '검정', orange: '주황' };
+export function tileLabel(t) { return t.joker ? '조커' : `${COLOR_KO[t.color]} ${t.num}`; }
+/** 기존 묶음을 다시 짰는지(새 타일만 더한 게 아닌지) */
+function tableRearranged(before, after, placedIds) {
+  const key = s => s.map(t => t.id).sort().join(',');
+  const beforeKeys = new Set(before.map(key));
+  return after.some(s => { const rest = s.filter(t => !placedIds.has(t.id)); return rest.length > 0 && !beforeKeys.has(key(rest)) && !beforeKeys.has(key(s)); });
+}
 function advance(g) {
   g.turn = (g.turn + 1) % g.players.length;
   beginTurn(g);

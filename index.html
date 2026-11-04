@@ -93,9 +93,11 @@
     <div id="log" class="log"></div>
   </aside>
   <main class="board">
+    <div id="lastTurn" class="last-turn hidden"></div>
     <div id="table" class="table"></div>
     <div class="actions">
       <div class="group">
+        <button id="suggestBtn" class="accent hidden" title="컴퓨터가 낼 수 있는 수를 찾아줘요">추천</button>
         <button id="resetBtn" title="이번 차례에 한 걸 전부 취소">처음대로</button>
         <button id="sortBtn" title="내 타일 정렬 방식 바꾸기">숫자순</button>
       </div>
@@ -130,7 +132,7 @@
       <li><b>처음 한 번은</b> 내 타일만으로 30점 이상을 내야 해요. 아래 안내문이 지금 몇 점인지 알려줘요.</li>
       <li>다 냈으면 <b>내 차례 끝</b>. 낼 게 없으면 <b>못 내면 뽑기</b>.</li>
       <li>꼬였으면 <b>처음대로</b>를 누르면 이번 차례에 한 게 전부 취소돼요.</li>
-      <li>연두색으로 빛나는 타일이 이번 차례에 낸 타일이에요. 빨간 테두리 묶음은 아직 규칙에 안 맞는다는 뜻이에요.</li>
+      <li>노란 테두리 타일은 바로 앞 사람이 방금 낸 타일이에요. 바닥 위 줄에 누가 뭘 냈는지도 나와요. 연두색으로 빛나는 타일이 이번 차례에 낸 타일이에요. 빨간 테두리 묶음은 아직 규칙에 안 맞는다는 뜻이에요.</li>
     </ol>
     <button id="helpClose" class="primary">알겠어요</button>
   </div>

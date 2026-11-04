@@ -46,3 +46,18 @@ test('CPU만으로 게임이 끝까지 진행된다', () => {
   const total = [...g.table.flat(), ...g.players.flatMap(p => p.rack), ...g.pool].length;
   assert.equal(total, 106);
 });
+
+test('직전 차례 기록(lastTurn): 낸 타일·뽑기', () => {
+  const g = createGame([{ name: 'A' }, { name: 'B' }], seeded);
+  drawTile(g);
+  assert.equal(g.lastTurn.name, 'A'); assert.equal(g.lastTurn.placed.length, 0); assert.equal(g.lastTurn.drew, true);
+  // B에게 30점짜리 손패를 심어 낸다
+  const p = current(g);
+  const mk = (c, n, id) => ({ id, color: c, num: n, joker: false });
+  p.rack = [mk('red', 10, 901), mk('blue', 10, 902), mk('black', 10, 903), mk('red', 1, 904)];
+  g.snapshot.rack = p.rack.slice();
+  moveTiles(g, [901, 902, 903], { kind: 'new' });
+  assert.ok(endTurn(g).ok);
+  assert.equal(g.lastTurn.name, 'B'); assert.equal(g.lastTurn.placed.length, 3); assert.equal(g.lastTurn.meldValue, 30);
+  assert.match(g.log.at(-1), /빨강 10, 파랑 10, 검정 10/);
+});

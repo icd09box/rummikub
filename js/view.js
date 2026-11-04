@@ -24,6 +24,7 @@ export function buildView(g, seat, extra = {}) {
       rack: g.phase === 'over' ? p.rack : undefined,
     })),
     log: g.log.slice(-30),
+    lastTurn: g.lastTurn || null,
     currentName: current(g).name,
     ...extra,
   };
