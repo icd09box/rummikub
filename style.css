@@ -167,3 +167,7 @@ button.primary { background: var(--accent); color: var(--accent-text); border-co
 /* 추천 타일 */
 @keyframes suggestBlink { 0%, 100% { box-shadow: 0 0 0 3px var(--accent), 0 0 14px rgba(143,219,36,.9); transform: translateY(-4px); } 50% { box-shadow: 0 0 0 1px var(--accent); transform: translateY(0); } }
 .tile.suggest { animation: suggestBlink .9s ease-in-out infinite; }
+
+/* 연결 상태 */
+.net { font-size: 12px; margin-right: 8px; }
+.net.warn { color: #ffd54a; } .net.bad { color: var(--danger); font-weight: 700; }

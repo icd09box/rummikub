@@ -60,6 +60,7 @@ $('hostBtn').addEventListener('click', () => {
       onLobby: renderLobby,
       onState: onView,
       onError: msg => flash(msg),
+      onStatus: st => setNetStatus(st),
     });
   } catch (e) { alert(e.message); show('setup'); }
   renderLobby(session.host.lobbyState());
@@ -81,7 +82,6 @@ $('joinBtn').addEventListener('click', () => {
     onLobby: renderLobby,
     onState: onView,
     onError: msg => { $('lobbyStatus').textContent = msg; flash(msg); },
-    onClosed: () => { flash('방장과 연결이 끊어졌어요.'); $('status').textContent = '연결 끊김'; },
   });
 });
 $('leaveBtn').addEventListener('click', () => { session && session.destroy(); session = null; show('setup'); });
@@ -381,6 +381,12 @@ function describeMove(v) {
   return `${moved} → ${label}에 붙였어요 (${set.length}장)`;
 }
 function toggle(id) { selected.has(id) ? selected.delete(id) : selected.add(id); }
+function setNetStatus(st) {
+  const el = $('netStatus');
+  if (st === 'ok') { el.textContent = ''; el.className = 'net'; }
+  else if (st === 'connecting') { el.textContent = '연결 중…'; el.className = 'net warn'; }
+  else { el.textContent = '연결 끊김 · 다시 연결 중…'; el.className = 'net bad'; }
+}
 function flash(msg) { const h = $('hint'); h.textContent = msg; h.className = 'hint bad'; }
 
 // ========== 조작 ==========
