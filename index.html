@@ -9,22 +9,38 @@
 <body>
 <header class="topbar">
   <h1>루미큐브</h1>
-  <div id="status" class="status"></div>
+  <div><span id="timer" class="timer"></span> <span id="status" class="status"></span></div>
 </header>
 
 <!-- 설정 화면 -->
 <section id="setup" class="screen">
   <div class="card">
-    <h2>새 게임</h2>
-    <label>인원
-      <select id="playerCount">
-        <option value="2">2명</option>
-        <option value="3">3명</option>
-        <option value="4">4명</option>
-      </select>
-    </label>
-    <div id="playerRows"></div>
-    <button id="startBtn" class="primary">게임 시작</button>
+    <div class="tabs">
+      <button class="tab active" data-pane="paneLocal">같은 기기</button>
+      <button class="tab" data-pane="paneHost">온라인 방 만들기</button>
+      <button class="tab" data-pane="paneJoin">참가하기</button>
+    </div>
+    <div id="paneLocal" class="tabpane">
+      <label>인원
+        <select id="playerCount">
+          <option value="2">2명</option>
+          <option value="3">3명</option>
+          <option value="4">4명</option>
+        </select>
+      </label>
+      <div id="playerRows"></div>
+      <button id="startBtn" class="primary">게임 시작</button>
+    </div>
+    <div id="paneHost" class="tabpane hidden">
+      <label>내 이름 <input id="hostName" type="text" maxlength="10" placeholder="방장"></label>
+      <p class="muted">방 코드가 발급됩니다. 친구들은 "참가하기"에서 코드를 입력합니다. 각자 자기 기기에서 접속해 플레이합니다.</p>
+      <button id="hostBtn" class="primary">방 만들기</button>
+    </div>
+    <div id="paneJoin" class="tabpane hidden">
+      <label>방 코드 <input id="joinCode" type="text" maxlength="6" placeholder="예: K7P2X" style="text-transform:uppercase"></label>
+      <label>내 이름 <input id="joinName" type="text" maxlength="10" placeholder="손님"></label>
+      <button id="joinBtn" class="primary">참가</button>
+    </div>
     <details class="rules">
       <summary>규칙 요약</summary>
       <ul>
@@ -33,8 +49,28 @@
         <li><b>초기 등록</b>: 자기 손패만으로 합계 30점 이상 세트를 내려놓아야 이후 테이블을 만질 수 있음.</li>
         <li>턴 종료 시 테이블의 모든 세트가 유효해야 하고, 최소 한 장은 손패에서 나와야 함. 못 놓으면 한 장 뽑기.</li>
         <li>손패를 먼저 비우면 승리. 다른 사람 남은 타일 합(조커 30)이 승자 점수.</li>
+        <li>온라인: 턴 제한시간을 넘기면 자동 뽑기. 접속이 끊긴 사람의 차례는 자동 뽑기로 넘어가며 같은 이름으로 다시 들어오면 자리를 되찾음. 방장이 나가면 게임 종료.</li>
       </ul>
     </details>
+  </div>
+</section>
+
+<!-- 로비 -->
+<section id="lobby" class="screen hidden">
+  <div class="card center">
+    <h2>방 코드 <span id="lobbyCode" class="code"></span></h2>
+    <p id="lobbyLink" class="muted small"></p>
+    <div id="lobbyPlayers" class="players left"></div>
+    <p id="lobbyStatus" class="muted"></p>
+    <p id="turnLimitView" class="muted"></p>
+    <div id="hostControls" class="hidden">
+      <label>턴 제한시간
+        <select id="turnLimit"><option value="0">없음</option><option value="60">60초</option><option value="120">120초</option></select>
+      </label>
+      <button id="addCpuBtn">CPU 추가</button>
+      <button id="lobbyStart" class="primary" disabled>게임 시작</button>
+    </div>
+    <button id="leaveBtn">나가기</button>
   </div>
 </section>
 
@@ -80,6 +116,7 @@
   </div>
 </section>
 
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script type="module" src="js/app.js"></script>
 </body>
 </html>

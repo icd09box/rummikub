@@ -64,3 +64,26 @@ button.primary { background: var(--accent); color: var(--accent-text); border-co
   .log { display: none; }
   .tile { width: 32px; height: 46px; font-size: 16px; }
 }
+
+/* 온라인 모드 */
+.tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+.tab { flex: 1; }
+.tab.active { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 700; }
+.muted { color: var(--muted); } .small { font-size: 12px; word-break: break-all; }
+.code { font-family: ui-monospace, Menlo, monospace; letter-spacing: .15em; color: var(--accent); }
+.players.left { text-align: left; margin: 12px 0; }
+.players .p button.mini { padding: 2px 8px; font-size: 12px; }
+#hostControls { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; align-items: center; margin: 10px 0; }
+#hostControls label { margin: 0; }
+.timer { color: var(--muted); margin-right: 10px; } .timer.urgent { color: var(--danger); font-weight: 700; }
+
+/* 드래그 앤 드롭 */
+.tile { touch-action: none; }
+.tile.dragging { opacity: .35; }
+.drag-ghost { position: fixed; left: 0; top: 0; width: 40px; height: 56px; border-radius: 6px; background: var(--tile); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 18px; pointer-events: none; z-index: 1000; box-shadow: 0 6px 16px rgba(0,0,0,.5); }
+.drag-ghost.red { color: var(--red); } .drag-ghost.blue { color: var(--blue); } .drag-ghost.black { color: var(--black); } .drag-ghost.orange { color: var(--orange); } .drag-ghost.joker { color: var(--joker); }
+.is-dragging { cursor: grabbing; user-select: none; }
+.set.drop-hover { border-color: var(--accent); background: rgba(143,219,36,.15); }
+.table.drop-hover { box-shadow: inset 0 0 0 3px var(--accent); }
+.rack.drop-hover { box-shadow: inset 0 0 0 3px var(--accent); }
+.hint::after { content: ""; }
