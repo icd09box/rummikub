@@ -183,6 +183,7 @@ document.addEventListener('pointermove', e => {
     document.body.classList.add('is-dragging');
   }
   drag.ghost.style.transform = `translate(${e.clientX - 20}px, ${e.clientY - 28}px)`;
+  autoScroll(e.clientY);
   highlightDropTarget(e.clientX, e.clientY);
 }, { passive: true });
 document.addEventListener('pointerup', e => {
@@ -211,6 +212,10 @@ document.addEventListener('pointercancel', () => { if (drag) { drag.ghost && dra
 let suppressClick = false;
 function suppressNextClick() { suppressClick = true; setTimeout(() => { suppressClick = false; }, 0); }
 document.addEventListener('click', e => { if (suppressClick) { e.stopPropagation(); e.preventDefault(); } }, true);
+function autoScroll(y) {
+  const t = $('table'); const r = t.getBoundingClientRect();
+  if (y < r.top + 40) t.scrollTop -= 12; else if (y > r.bottom - 40) t.scrollTop += 12;
+}
 function dropTargetAt(x, y) {
   const el = document.elementFromPoint(x, y);
   if (!el) return null;
@@ -280,7 +285,8 @@ function render(cpuView = false) {
     hint.className = 'hint ' + (r.ok ? 'good' : 'bad');
   }
   for (const id of ['newSetBtn', 'toRackBtn', 'resetBtn', 'drawBtn', 'endBtn']) $(id).disabled = !myTurn;
-  for (const id of ['sortNumBtn', 'sortColorBtn']) $(id).disabled = cpuView;
+  $('sortBtn').disabled = cpuView; $('sortBtn').textContent = sortMode === 'num' ? '정렬: 숫자' : '정렬: 색';
+  $('newSetBtn').disabled = $('toRackBtn').disabled = !myTurn || selected.size === 0;
   if (!myTurn) selected.clear();
   startCountdown(v.deadline);
 }
@@ -317,8 +323,7 @@ $('toRackBtn').addEventListener('click', () => {
   selected.clear(); if (!mine.length) render();
 });
 $('resetBtn').addEventListener('click', () => { selected.clear(); dispatch({ type: 'reset' }); });
-$('sortNumBtn').addEventListener('click', () => { sortMode = 'num'; render(); });
-$('sortColorBtn').addEventListener('click', () => { sortMode = 'color'; render(); });
+$('sortBtn').addEventListener('click', () => { sortMode = sortMode === 'num' ? 'color' : 'num'; render(); });
 $('drawBtn').addEventListener('click', () => { selected.clear(); dispatch({ type: 'draw' }); });
 $('endBtn').addEventListener('click', () => { selected.clear(); dispatch({ type: 'end' }); });
 

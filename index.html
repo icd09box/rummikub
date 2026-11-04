@@ -2,7 +2,8 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#15201a">
 <title>루미큐브</title>
 <link rel="stylesheet" href="style.css">
 </head>
@@ -93,14 +94,16 @@
   <main class="board">
     <div id="table" class="table"></div>
     <div class="actions">
-      <button id="newSetBtn">선택 → 새 세트</button>
-      <button id="toRackBtn">선택 → 손패로</button>
-      <button id="resetBtn">턴 되돌리기</button>
-      <span class="spacer"></span>
-      <button id="sortNumBtn">숫자 정렬</button>
-      <button id="sortColorBtn">색 정렬</button>
-      <button id="drawBtn">뽑기 / 패스</button>
-      <button id="endBtn" class="primary">턴 종료</button>
+      <div class="group">
+        <button id="newSetBtn" title="선택한 타일로 새 세트">새 세트</button>
+        <button id="toRackBtn" title="선택한 타일을 손패로">손패로</button>
+        <button id="resetBtn" title="턴 시작 상태로">되돌리기</button>
+        <button id="sortBtn" title="손패 정렬 방식 전환">정렬: 숫자</button>
+      </div>
+      <div class="group main">
+        <button id="drawBtn">뽑기 / 패스</button>
+        <button id="endBtn" class="primary">턴 종료</button>
+      </div>
     </div>
     <div id="hint" class="hint"></div>
     <div id="rack" class="rack"></div>

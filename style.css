@@ -58,11 +58,50 @@ button.primary { background: var(--accent); color: var(--accent-text); border-co
 .scores { margin: 16px auto; border-collapse: collapse; }
 .scores td, .scores th { padding: 6px 14px; border-bottom: 1px solid #456; }
 
+/* 하단바 */
+.actions .group { display: flex; gap: 6px; flex-wrap: wrap; }
+.actions .group.main { margin-left: auto; }
+
 @media (max-width: 720px) {
-  #game { flex-direction: column; }
-  .side { width: auto; flex-direction: row; flex-wrap: wrap; }
+  body { touch-action: manipulation; }
+  .topbar { padding: 6px 12px; }
+  .topbar h1 { font-size: 15px; }
+  .status { font-size: 13px; }
+  #game { flex-direction: column; height: calc(100vh - 40px); height: calc(100dvh - 40px); }
+  .screen:not(#game) { align-items: flex-start; padding-top: 16px; }
+  /* 플레이어 패널 → 가로 칩 한 줄 */
+  .side { width: auto; padding: 6px 10px; flex-direction: row; gap: 6px; overflow-x: auto; flex-shrink: 0; }
+  .players { display: flex; gap: 6px; }
+  .players .p { margin: 0; padding: 4px 8px; flex-direction: column; align-items: flex-start; font-size: 12px; white-space: nowrap; gap: 0; }
+  .players .p .meta { font-size: 11px; }
+  .pool { font-size: 12px; white-space: nowrap; align-self: center; }
   .log { display: none; }
-  .tile { width: 32px; height: 46px; font-size: 16px; }
+  /* 테이블은 남는 공간 전부, 손패는 가로 스크롤 한 줄 */
+  .board { flex: 1; min-height: 0; }
+  .table { padding: 10px; gap: 10px; }
+  .set { gap: 2px; padding: 4px; }
+  .rack { flex-wrap: nowrap; overflow-x: auto; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); min-height: 0; gap: 5px; -webkit-overflow-scrolling: touch; }
+  .rack .tile { flex: 0 0 auto; }
+  .tile { width: 38px; height: 54px; font-size: 19px; }
+  .tile.selected { transform: translateY(-6px); }
+  /* 버튼: 한 줄에 다 들어가게 */
+  .actions { padding: 6px 10px; gap: 6px; flex-wrap: nowrap; }
+  .actions .group { flex-wrap: nowrap; }
+  .actions button { padding: 8px 9px; font-size: 13px; white-space: nowrap; }
+  .actions .group.main button { font-weight: 700; }
+  .hint { font-size: 12px; padding: 3px 10px; min-height: 18px; }
+  .drag-ghost { width: 44px; height: 60px; font-size: 20px; }
+}
+@media (max-width: 400px) {
+  .actions button { padding: 8px 7px; font-size: 12px; }
+  .tile { width: 34px; height: 50px; font-size: 17px; }
+}
+/* 가로 모드 폰: 세로 공간이 좁으니 상단바·칩 압축 */
+@media (max-height: 480px) and (orientation: landscape) {
+  .topbar { padding: 3px 12px; }
+  .side { padding: 3px 10px; }
+  .hint { font-size: 11px; min-height: 0; padding: 1px 10px; }
+  .tile { width: 34px; height: 46px; font-size: 16px; }
 }
 
 /* 온라인 모드 */
