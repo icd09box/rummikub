@@ -7,6 +7,8 @@
 조작은 클릭 선택 → 대상 클릭, 또는 드래그 앤 드롭(마우스·터치).
 빌드 없이 정적 파일만 있어 GitHub Pages에 그대로 올라간다.
 
+**플레이**: https://icd09box.github.io/rummikub/
+
 ## 실행
 ```bash
 python3 -m http.server 8080   # 그 다음 http://localhost:8080
