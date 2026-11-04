@@ -1,0 +1,66 @@
+:root {
+  --bg: #1e2a1f; --panel: #2b3a2c; --panel2: #35473a; --text: #eef3ea; --muted: #a9b8a5;
+  --accent: #8fdb24; --accent-text: #112200; --danger: #ff7a7a;
+  --tile: #fbf6e6; --tile-edge: #d9cfae;
+  --red: #d33; --blue: #2466d6; --black: #222; --orange: #e68a1a; --joker: #8a2be2;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--bg); color: var(--text); font-family: -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; display: flex; flex-direction: column; min-height: 100vh; }
+.topbar { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; background: #15201a; }
+.topbar h1 { font-size: 18px; margin: 0; letter-spacing: .1em; }
+.status { color: var(--accent); font-weight: 600; }
+.hidden { display: none !important; }
+.screen { flex: 1; display: flex; }
+.card { background: var(--panel); border-radius: 12px; padding: 24px; margin: auto; width: min(520px, calc(100% - 32px)); }
+.card.center { text-align: center; }
+.card h2 { margin-top: 0; }
+label { display: block; margin: 10px 0; }
+select, input { font: inherit; padding: 6px 8px; border-radius: 6px; border: 1px solid #556; background: #fff; color: #111; }
+.player-row { display: flex; gap: 8px; align-items: center; margin: 6px 0; }
+.player-row input { flex: 1; }
+button { font: inherit; padding: 8px 14px; border-radius: 8px; border: 1px solid #5a6e5c; background: var(--panel2); color: var(--text); cursor: pointer; }
+button:hover { filter: brightness(1.1); }
+button:disabled { opacity: .45; cursor: default; }
+button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 700; }
+.rules { margin-top: 16px; color: var(--muted); font-size: 14px; }
+.rules li { margin: 4px 0; }
+
+#game { display: flex; gap: 0; }
+#game.hidden { display: none; }
+.side { width: 220px; background: var(--panel); padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.players .p { padding: 8px; border-radius: 8px; background: var(--panel2); margin-bottom: 6px; display: flex; justify-content: space-between; }
+.players .p.active { outline: 2px solid var(--accent); }
+.players .p .meta { color: var(--muted); font-size: 12px; }
+.pool { color: var(--muted); }
+.log { flex: 1; overflow: auto; font-size: 12px; color: var(--muted); border-top: 1px solid #456; padding-top: 6px; }
+.board { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.table { flex: 1; padding: 14px; display: flex; flex-wrap: wrap; gap: 14px; align-content: flex-start; overflow: auto; background: radial-gradient(ellipse at center, #2f5b36, #1e2a1f 80%); }
+.set { display: flex; gap: 3px; padding: 6px; border-radius: 8px; background: rgba(0,0,0,.25); border: 2px solid transparent; cursor: pointer; align-self: flex-start; }
+.set.invalid { border-color: var(--danger); }
+.set.changed { border-style: dashed; border-color: rgba(255,255,255,.4); }
+.set.invalid.changed { border-color: var(--danger); }
+.set:hover { background: rgba(255,255,255,.08); }
+.actions { display: flex; gap: 8px; padding: 8px 14px; background: #15201a; flex-wrap: wrap; }
+.spacer { flex: 1; }
+.hint { padding: 4px 14px; min-height: 22px; font-size: 13px; color: var(--muted); background: #15201a; }
+.hint.bad { color: var(--danger); }
+.hint.good { color: var(--accent); }
+.rack { display: flex; flex-wrap: wrap; gap: 4px; padding: 12px 14px; background: #3a2d1e; min-height: 84px; }
+
+.tile { width: 40px; height: 56px; border-radius: 6px; background: var(--tile); border-bottom: 3px solid var(--tile-edge); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 20px; cursor: pointer; user-select: none; box-shadow: 0 1px 2px rgba(0,0,0,.4); transition: transform .08s; }
+.tile.red { color: var(--red); } .tile.blue { color: var(--blue); } .tile.black { color: var(--black); } .tile.orange { color: var(--orange); }
+.tile.joker { color: var(--joker); font-size: 22px; }
+.tile.selected { transform: translateY(-8px); outline: 3px solid var(--accent); }
+.tile.new { box-shadow: 0 0 0 2px var(--accent) inset, 0 1px 2px rgba(0,0,0,.4); }
+.tile.cpu-hidden { background: #6b7a6c; border-bottom-color: #4b5a4c; color: transparent; }
+
+.scores { margin: 16px auto; border-collapse: collapse; }
+.scores td, .scores th { padding: 6px 14px; border-bottom: 1px solid #456; }
+
+@media (max-width: 720px) {
+  #game { flex-direction: column; }
+  .side { width: auto; flex-direction: row; flex-wrap: wrap; }
+  .log { display: none; }
+  .tile { width: 32px; height: 46px; font-size: 16px; }
+}

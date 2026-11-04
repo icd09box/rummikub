@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>루미큐브</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <h1>루미큐브</h1>
+  <div id="status" class="status"></div>
+</header>
+
+<!-- 설정 화면 -->
+<section id="setup" class="screen">
+  <div class="card">
+    <h2>새 게임</h2>
+    <label>인원
+      <select id="playerCount">
+        <option value="2">2명</option>
+        <option value="3">3명</option>
+        <option value="4">4명</option>
+      </select>
+    </label>
+    <div id="playerRows"></div>
+    <button id="startBtn" class="primary">게임 시작</button>
+    <details class="rules">
+      <summary>규칙 요약</summary>
+      <ul>
+        <li>타일 106장(1~13 × 4색 × 2 + 조커 2), 각자 14장으로 시작.</li>
+        <li><b>그룹</b>: 같은 숫자, 다른 색 3~4장. <b>런</b>: 같은 색 연속 숫자 3장 이상(1→13, 순환 없음).</li>
+        <li><b>초기 등록</b>: 자기 손패만으로 합계 30점 이상 세트를 내려놓아야 이후 테이블을 만질 수 있음.</li>
+        <li>턴 종료 시 테이블의 모든 세트가 유효해야 하고, 최소 한 장은 손패에서 나와야 함. 못 놓으면 한 장 뽑기.</li>
+        <li>손패를 먼저 비우면 승리. 다른 사람 남은 타일 합(조커 30)이 승자 점수.</li>
+      </ul>
+    </details>
+  </div>
+</section>
+
+<!-- 기기 넘기기 화면 -->
+<section id="handoff" class="screen hidden">
+  <div class="card center">
+    <h2 id="handoffName"></h2>
+    <p>차례입니다. 다른 사람은 화면을 보지 마세요.</p>
+    <button id="handoffBtn" class="primary">내 손패 보기</button>
+  </div>
+</section>
+
+<!-- 게임 화면 -->
+<section id="game" class="screen hidden">
+  <aside class="side">
+    <div id="players" class="players"></div>
+    <div class="pool">더미 <b id="poolCount"></b>장</div>
+    <div id="log" class="log"></div>
+  </aside>
+  <main class="board">
+    <div id="table" class="table"></div>
+    <div class="actions">
+      <button id="newSetBtn">선택 → 새 세트</button>
+      <button id="toRackBtn">선택 → 손패로</button>
+      <button id="resetBtn">턴 되돌리기</button>
+      <span class="spacer"></span>
+      <button id="sortNumBtn">숫자 정렬</button>
+      <button id="sortColorBtn">색 정렬</button>
+      <button id="drawBtn">뽑기 / 패스</button>
+      <button id="endBtn" class="primary">턴 종료</button>
+    </div>
+    <div id="hint" class="hint"></div>
+    <div id="rack" class="rack"></div>
+  </main>
+</section>
+
+<!-- 종료 화면 -->
+<section id="over" class="screen hidden">
+  <div class="card center">
+    <h2 id="winnerText"></h2>
+    <table id="scoreTable" class="scores"></table>
+    <button id="againBtn" class="primary">다시 하기</button>
+  </div>
+</section>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
