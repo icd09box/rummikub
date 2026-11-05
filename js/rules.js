@@ -196,3 +196,24 @@ export function canExtend(set, tiles) {
   }
   return false;
 }
+
+/** 규칙에 안 맞는 묶음에서 '문제인 타일' id 목록(화면 안내용). 하나를 빼면 맞아지는 타일을 우선 짚고, 없으면 소수파(색·숫자가 다른 쪽)를 짚는다. */
+export function offendingTiles(set) {
+  if (set.length < 3 || isValidSet(set)) return [];
+  const fits = rest => (rest.length >= 3 ? isValidSet(rest) : canExtend(rest, []));
+  const single = set.filter((_, i) => fits(set.filter((__, j) => j !== i))).map(t => t.id);
+  if (single.length) return single;
+  const real = set.filter(t => !t.joker);
+  if (real.length === 0) return [];
+  const count = (arr, k) => arr.reduce((m, t) => (m[t[k]] = (m[t[k]] || 0) + 1, m), {});
+  const byColor = count(real, 'color'), byNum = count(real, 'num');
+  const topColor = Object.keys(byColor).sort((a, b) => byColor[b] - byColor[a])[0];
+  const topNum = Object.keys(byNum).sort((a, b) => byNum[b] - byNum[a])[0];
+  // 같은 색이 더 많으면 연속 묶음 시도로 보고 색 다른 것·숫자 겹치는 것, 아니면 같은 숫자 묶음으로 보고 숫자 다른 것·색 겹치는 것
+  if (byColor[topColor] >= byNum[topNum]) {
+    const seen = new Set();
+    return real.filter(t => t.color !== topColor || (seen.has(t.num) ? true : (seen.add(t.num), false))).map(t => t.id);
+  }
+  const seen = new Set();
+  return real.filter(t => String(t.num) !== topNum || (seen.has(t.color) ? true : (seen.add(t.color), false))).map(t => t.id);
+}

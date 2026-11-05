@@ -1,5 +1,6 @@
 import { createGame, current, moveTiles, endTurn, drawTile, resetTurn, undoMove, MIN_PLAYERS, MAX_PLAYERS, runCpuTurn } from './game.js';
-import { analyzeSet, COLORS, canExtend } from './rules.js';
+import { analyzeSet, COLORS, canExtend, offendingTiles } from './rules.js';
+import { EMOJIS } from './host.js';
 import { buildView } from './view.js';
 import { planCpuTurn } from './cpu.js';
 import { HostSession, ClientSession, makeToken, loadHostSave, clearHostSave } from './net.js';
@@ -22,7 +23,9 @@ let lastMoved = new Set();   // 직전 조작으로 옮긴 타일 id (놓은 곳
 let lastMovedAt = 0;
 let tidy = false;            // 바닥 묶음을 정렬해서 보기(내 화면만)
 let wasMyTurn = false;       // 내 차례 알림용
-let prefs = { symbols: false, alert: true };
+let prefs = { symbols: false, alert: true, pinpoint: true, rows: 'one' };
+let rackCollapsed = false;
+let lastReactionAt = 0;
 try { prefs = { ...prefs, ...JSON.parse(localStorage.getItem('rummi-prefs') || '{}') }; } catch {}
 function savePrefs() { try { localStorage.setItem('rummi-prefs', JSON.stringify(prefs)); } catch {} }
 document.body.classList.toggle('symbols', prefs.symbols);
@@ -200,6 +203,7 @@ function tileEl(t, opts = {}) {
   if (suggestIds.has(t.id)) el.classList.add('suggest');
   if (opts.justMoved) el.classList.add('just-moved');
   if (opts.hidden) el.classList.add('cpu-hidden');
+  if (opts.bad) el.classList.add('bad');
   el.dataset.id = t.id;
   if (opts.draggable) attachDrag(el, t.id);
   return el;
@@ -293,7 +297,7 @@ function dropTargetAt(x, y) {
   const set = el.closest('.set');
   if (set && set.parentElement === $('table')) return { kind: 'set', index: Number(set.dataset.idx) };
   if (el.closest('#table')) return { kind: 'new' };
-  if (el.closest('#rack')) return { kind: 'rack' };
+  if (el.closest('#rack') || el.closest('#rackBar')) return { kind: 'rack' };
   return null;
 }
 function highlightDropTarget(x, y) {
@@ -302,7 +306,7 @@ function highlightDropTarget(x, y) {
   if (!t) return;
   if (t.kind === 'set') { const el = setEl(t.index); el && el.classList.add('drop-hover'); }
   else if (t.kind === 'new') $('table').classList.add('drop-hover');
-  else $('rack').classList.add('drop-hover');
+  else { $('rack').classList.add('drop-hover'); $('rackBar').classList.add('drop-hover'); }
 }
 function setEl(idx) { return $('table').querySelector(`.set[data-idx="${idx}"]`); }
 /** 바닥 묶음 표시 순서: 정리 모드면 연속 묶음(색→시작 숫자) → 같은 숫자 묶음(숫자) → 아직 안 맞는 묶음 */
@@ -352,12 +356,21 @@ function render(cpuView = false) {
     if (!v.snapshotSetKeys.includes(set.map(t => t.id).sort().join(','))) el.classList.add('changed');
     const fresh = Date.now() - lastMovedAt < 1500;
     if (fresh && set.some(t => lastMoved.has(t.id))) el.classList.add('just-dropped');
-    (a.ok ? a.ordered : set).forEach(t => el.appendChild(tileEl(t, { isNew: newIds.has(t.id), lastPlaced: lastIds.has(t.id), draggable: myTurn, justMoved: fresh && lastMoved.has(t.id) })));
+    const bad = new Set(!a.ok && prefs.pinpoint ? offendingTiles(set) : []);
+    (a.ok ? a.ordered : set).forEach(t => el.appendChild(tileEl(t, { isNew: newIds.has(t.id), lastPlaced: lastIds.has(t.id), draggable: myTurn, justMoved: fresh && lastMoved.has(t.id), bad: bad.has(t.id) })));
     if (myTurn) el.addEventListener('click', e => onSetClick(e, idx));
     table.appendChild(el);
   });
 
   const rack = $('rack'); rack.innerHTML = '';
+  rack.classList.toggle('two', prefs.rows === 'two');
+  rack.classList.toggle('collapsed', rackCollapsed);
+  $('rackBar').classList.toggle('collapsed', rackCollapsed);
+  $('rackInfo').textContent = cpuView ? '' : `내 타일 ${v.rack.length}장${rackCollapsed ? ' (접힘 — 여기로 끌어오면 돌아와요)' : ''}`;
+  $('rackToggle').textContent = rackCollapsed ? '▲ 타일 칸 올리기' : '▼ 타일 칸 내리기';
+  $('rowsBtn').classList.toggle('on', prefs.rows === 'two');
+  $('emojiBtn').classList.toggle('hidden', mode === 'local');
+  if (v.reaction && v.reaction.at !== lastReactionAt) { lastReactionAt = v.reaction.at; showReaction(v.reaction); }
   for (const t of sortRack(v.rack)) {
     const el = tileEl(t, { hidden: cpuView, draggable: myTurn });
     if (myTurn) el.addEventListener('click', () => { toggle(t.id); render(); });
@@ -538,6 +551,24 @@ $('suggestBtn').addEventListener('click', () => {
 $('resetBtn').addEventListener('click', () => { selected.clear(); dispatch({ type: 'reset' }); });
 $('undoBtn').addEventListener('click', () => { selected.clear(); dispatch({ type: 'undo' }); });
 $('tidyBtn').addEventListener('click', () => { tidy = !tidy; render(); });
+$('rowsBtn').addEventListener('click', () => { prefs.rows = prefs.rows === 'two' ? 'one' : 'two'; savePrefs(); render(); });
+$('rackToggle').addEventListener('click', () => { rackCollapsed = !rackCollapsed; render(); });
+
+// ========== 이모지 반응(온라인) ==========
+$('emojiBar').innerHTML = EMOJIS.map(e => `<button data-emoji="${e}">${e}</button>`).join('');
+$('emojiBtn').addEventListener('click', () => $('emojiBar').classList.toggle('hidden'));
+$('emojiBar').querySelectorAll('[data-emoji]').forEach(b => b.addEventListener('click', () => {
+  $('emojiBar').classList.add('hidden');
+  if (session) session.dispatch({ type: 'react', emoji: b.dataset.emoji });
+}));
+document.addEventListener('click', e => { if (!e.target.closest('#emojiBar') && !e.target.closest('#emojiBtn')) $('emojiBar').classList.add('hidden'); });
+function showReaction(r) {
+  const el = document.createElement('div'); el.className = 'reaction';
+  el.innerHTML = `<b>${esc(r.name)}</b><span class="e">${r.emoji}</span>`;
+  $('reactions').appendChild(el);
+  setTimeout(() => el.remove(), 2700);
+  if (r.seat !== view.seat) { try { navigator.vibrate && navigator.vibrate(40); } catch {} }
+}
 $('sortBtn').addEventListener('click', () => { sortMode = sortMode === 'num' ? 'color' : 'num'; render(); });
 $('drawBtn').addEventListener('click', () => { selected.clear(); dispatch({ type: 'draw' }); });
 $('endBtn').addEventListener('click', () => { selected.clear(); dispatch({ type: 'end' }); });
@@ -576,8 +607,12 @@ $('help').addEventListener('click', e => { if (e.target === $('help')) $('helpCl
 $('symbolToggle').checked = prefs.symbols; $('alertToggle').checked = prefs.alert;
 $('symbolToggle').addEventListener('change', () => { prefs.symbols = $('symbolToggle').checked; document.body.classList.toggle('symbols', prefs.symbols); savePrefs(); });
 $('alertToggle').addEventListener('change', () => { prefs.alert = $('alertToggle').checked; savePrefs(); });
+$('pinpointToggle').checked = prefs.pinpoint;
+$('pinpointToggle').addEventListener('change', () => { prefs.pinpoint = $('pinpointToggle').checked; savePrefs(); if (view && view.phase === 'playing') render(); });
 function maybeShowHelp() { let seen = false; try { seen = !!localStorage.getItem('rummi-help-seen'); } catch {} if (!seen) $('help').classList.remove('hidden'); }
 
 renderSetupRows();
 show('setup');
 checkResume();
+// 홈 화면 추가(PWA): 같은 기기 모드는 오프라인도 됨
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) { navigator.serviceWorker.register('sw.js').catch(() => {}); }

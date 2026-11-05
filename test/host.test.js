@@ -126,3 +126,16 @@ test('저장·복구: 같은 판·같은 자리로 되살리고 참가자는 끊
   // B가 같은 토큰으로 돌아오면 같은 자리
   assert.equal(h2.addHuman('B', 'tb'), 1); assert.equal(h2.seats[1].connected, true);
 });
+
+test('이모지 반응: 남의 차례에도 보내지고 모두에게 전달, 1.5초 안 연타는 무시', () => {
+  const { h, sent } = mkHost();
+  h.addHuman('A', 'ta'); h.addHuman('B', 'tb'); h.start(seeded);
+  assert.ok(h.applyAction(1, { type: 'react', emoji: '👍' }).ok);
+  const v = sent.filter(x => x.msg.t === 'state' && x.seat === 0).at(-1).msg.view;
+  assert.equal(v.reaction.emoji, '👍'); assert.equal(v.reaction.seat, 1);
+  const n = sent.length;
+  h.applyAction(1, { type: 'react', emoji: '🔥' });
+  assert.equal(sent.length, n);  // 연타 무시
+  assert.equal(h.applyAction(1, { type: 'react', emoji: '💩' }).ok, false);
+  assert.equal(h.game.turn, 0);  // 차례는 그대로
+});

@@ -27,6 +27,7 @@ export function buildView(g, seat, extra = {}) {
     })),
     log: g.log.slice(-30),
     lastTurn: g.lastTurn || null,
+    reaction: g.reaction || null,
     currentName: current(g).name,
     ...extra,
   };

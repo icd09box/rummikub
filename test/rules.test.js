@@ -92,3 +92,14 @@ test('canExtend: 미완성 세트에도 붙일 수 있는지', async () => {
   assert.equal(canExtend([T('red', 5), T('blue', 5), T('black', 5), T('orange', 5)], [J()]), false);
   assert.equal(canExtend([T('red', 5), T('red', 6)], [T('blue', 7)]), false);
 });
+
+test('문제 타일 짚기: 하나 빼면 맞는 타일, 없으면 소수파', async () => {
+  const { offendingTiles } = await import('../js/rules.js');
+  const t = (color, num, id) => ({ id, color, num, joker: false });
+  assert.deepEqual(offendingTiles([t('red', 4, 1), t('red', 5, 2), t('red', 6, 3)]), []);
+  assert.deepEqual(offendingTiles([t('red', 4, 1), t('red', 5, 2), t('red', 6, 3), t('blue', 9, 4)]), [4]);
+  assert.deepEqual(offendingTiles([t('red', 7, 1), t('blue', 7, 2), t('blue', 7, 3)]).sort(), [2, 3]);
+  const r = offendingTiles([t('red', 1, 1), t('red', 2, 2), t('blue', 9, 3), t('orange', 12, 4), t('red', 3, 5)]);
+  assert.deepEqual(r.sort(), [3, 4]);
+  assert.deepEqual(offendingTiles([t('red', 4, 1), t('red', 5, 2)]), []);
+});

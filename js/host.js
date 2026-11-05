@@ -3,6 +3,7 @@ import { createGame, current, moveTiles, endTurn, drawTile, resetTurn, undoMove,
 import { buildView } from './view.js';
 
 export const TURN_LIMITS = [0, 60, 120];
+export const EMOJIS = ['👍', '😂', '🔥', '⏰', '😱', '🙏'];
 
 export class GameHost {
   /**
@@ -112,6 +113,7 @@ export class GameHost {
   /** @returns {{ok:boolean, error?:string}} */
   applyAction(seat, a) {
     const g = this.game;
+    if (a && a.type === 'react') return this.react(seat, a.emoji);
     if (!g || g.phase !== 'playing') return { ok: false, error: '게임이 진행 중이 아닙니다.' };
     if (g.turn !== seat) return { ok: false, error: '내 차례가 아닙니다.' };
     let turnEnded = false;
@@ -132,6 +134,18 @@ export class GameHost {
       default: return { ok: false, error: '알 수 없는 행동' };
     }
     this.afterChange(turnEnded);
+    return { ok: true };
+  }
+
+  /** 이모지 반응: 차례와 무관, 자리마다 1.5초에 한 번 */
+  react(seat, emoji) {
+    const g = this.game; const s = this.seats[seat];
+    if (!g || !s || !EMOJIS.includes(emoji)) return { ok: false, error: '보낼 수 없는 반응' };
+    const now = Date.now();
+    if (s.lastReact && now - s.lastReact < 1500) return { ok: true };
+    s.lastReact = now;
+    g.reaction = { seat, name: s.name, emoji, at: now };
+    this.broadcastState();
     return { ok: true };
   }
 
