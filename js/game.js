@@ -5,7 +5,7 @@ import { planCpuTurn } from './cpu.js';
 export const MIN_PLAYERS = 2;
 export const MAX_PLAYERS = 4;
 
-export function createGame(playerDefs, rng = Math.random) {
+export function createGame(playerDefs, rng = Math.random, opts = {}) {
   if (playerDefs.length < MIN_PLAYERS || playerDefs.length > MAX_PLAYERS) {
     throw new Error(`플레이어는 ${MIN_PLAYERS}~${MAX_PLAYERS}명이어야 합니다.`);
   }
@@ -17,6 +17,7 @@ export function createGame(playerDefs, rng = Math.random) {
     rack: pool.splice(0, HAND_SIZE),
     hasMelded: false,
     score: 0,
+    total: d.total || 0,   // 이전 판까지 누적 점수
   }));
   const g = {
     players, pool, table: [], turn: 0,
@@ -24,6 +25,8 @@ export function createGame(playerDefs, rng = Math.random) {
     winner: null,
     log: [],
     snapshot: null,
+    history: [],
+    round: opts.round || 1,
   };
   beginTurn(g);
   return g;
@@ -34,6 +37,7 @@ export function current(g) { return g.players[g.turn]; }
 function beginTurn(g) {
   const p = current(g);
   g.snapshot = { table: g.table.map(s => s.slice()), rack: p.rack.slice() };
+  g.history = [];
 }
 
 /** 턴 시작 상태로 되돌리기 */
@@ -41,11 +45,22 @@ export function resetTurn(g) {
   const p = current(g);
   g.table = g.snapshot.table.map(s => s.slice());
   p.rack = g.snapshot.rack.slice();
+  g.history = [];
+}
+
+/** 직전 한 수만 되돌리기(이번 차례 안에서). 되돌릴 게 없으면 false */
+export function undoMove(g) {
+  if (!g.history || g.history.length === 0) return false;
+  const h = g.history.pop();
+  g.table = h.table; current(g).rack = h.rack;
+  return true;
 }
 
 /** 타일 이동: from/to = {kind:'rack'} | {kind:'set', index} | {kind:'new'} */
 export function moveTiles(g, tileIds, to) {
   const p = current(g);
+  (g.history ||= []).push({ table: g.table.map(s => s.slice()), rack: p.rack.slice() });
+  if (g.history.length > 60) g.history.shift();
   const ids = new Set(tileIds);
   const moving = [];
   p.rack = p.rack.filter(t => (ids.has(t.id) ? (moving.push(t), false) : true));
@@ -112,6 +127,7 @@ function finish(g, winner) {
   let total = 0;
   for (const p of g.players) if (p !== winner) { const pen = rackPenalty(p.rack); p.score = -pen; total += pen; }
   winner.score = total;
+  g.players.forEach(p => { p.total += p.score; });
   g.log.push(`${winner.name} 승리!`);
   return { ok: true, over: true };
 }
@@ -123,6 +139,7 @@ function finishByPenalty(g) {
   g.phase = 'over'; g.winner = winner.id;
   for (const p of g.players) p.score = -(rackPenalty(p.rack) - rackPenalty(winner.rack));
   winner.score = g.players.filter(p => p !== winner).reduce((s, p) => s - p.score, 0);
+  g.players.forEach(p => { p.total += p.score; });
   g.log.push(`남은 타일 없음 — ${winner.name} 타일 점수가 가장 낮아 승리`);
   return { ok: true, over: true };
 }

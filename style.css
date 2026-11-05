@@ -171,3 +171,23 @@ button.primary { background: var(--accent); color: var(--accent-text); border-co
 /* 연결 상태 */
 .net { font-size: 12px; margin-right: 8px; }
 .net.warn { color: #ffd54a; } .net.bad { color: var(--danger); font-weight: 700; }
+
+/* 이어하기·QR·설정 */
+.resume { background: #3d3a1c; border: 1px solid #5a5520; border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; font-size: 14px; }
+.resume p { margin: 0 0 8px; }
+.qr { display: flex; justify-content: center; margin: 8px 0; }
+.qr img, .qr canvas { border: 6px solid #fff; border-radius: 6px; }
+.prefs { text-align: left; font-size: 13px; color: var(--muted); border-top: 1px solid #456; padding-top: 8px; margin-top: 8px; }
+label.inline { display: flex; gap: 8px; align-items: center; margin: 6px 0; }
+button.mini { padding: 4px 10px; font-size: 12px; }
+
+/* 색 기호(색약 보조): 타일 왼쪽 위 작은 기호 */
+body.symbols .tile { position: relative; }
+body.symbols .tile::before { position: absolute; top: 2px; left: 4px; font-size: 9px; font-weight: 700; line-height: 1; opacity: .85; }
+body.symbols .tile.red::before { content: '●'; }
+body.symbols .tile.blue::before { content: '■'; }
+body.symbols .tile.black::before { content: '▲'; }
+body.symbols .tile.orange::before { content: '◆'; }
+body.symbols .tile.cpu-hidden::before { content: ''; }
+button.on { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.scores td.total { font-weight: 700; color: var(--accent); }

@@ -9,28 +9,65 @@ export function makeCode(len = 5) {
 }
 export function makeToken() { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
 
+// STUN만으로는 LTE/5G·회사 와이파이 사이에 직결이 안 되는 경우가 있어 공개 TURN 중계를 함께 둔다.
+export const ICE_SERVERS = [
+  { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+  { urls: 'stun:openrelay.metered.ca:80' },
+  { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+  { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+  { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+];
 function newPeer(id) {
   if (typeof Peer === 'undefined') throw new Error('PeerJS 로드 실패 (네트워크 확인)');
-  return id ? new Peer(id, { debug: 1 }) : new Peer({ debug: 1 });
+  const opts = { debug: 1, config: { iceServers: ICE_SERVERS } };
+  return id ? new Peer(id, opts) : new Peer(opts);
 }
+
+const SAVE_KEY = 'rummi-host-save';
+/** 방장 새로고침 복구용 저장본 읽기(2시간 지난 건 버림) */
+export function loadHostSave(storage = globalThis.localStorage) {
+  try {
+    const raw = storage && storage.getItem(SAVE_KEY); if (!raw) return null;
+    const d = JSON.parse(raw);
+    if (!d || !d.code || !d.state || Date.now() - (d.state.savedAt || 0) > 2 * 3600 * 1000) return null;
+    return d;
+  } catch { return null; }
+}
+export function clearHostSave(storage = globalThis.localStorage) { try { storage && storage.removeItem(SAVE_KEY); } catch {} }
 
 /** 방장: 호스트 자신도 자리 0을 차지한다. 연결은 자리 번호가 아니라 토큰으로 묶는다(자리가 당겨져도 안전). */
 export class HostSession {
-  constructor({ name, onLobby, onState, onError, onReady, onStatus }) {
-    this.code = makeCode();
+  /** restore: loadHostSave()가 돌려준 저장본을 넣으면 같은 코드·같은 판으로 되살린다 */
+  constructor({ name, onLobby, onState, onError, onReady, onStatus, restore = null, storage = globalThis.localStorage }) {
+    this.code = restore ? restore.code : makeCode();
+    this.restoring = !!restore;
     this.name = name;
+    this.storage = storage;
     this.conns = new Map();   // token -> DataConnection
     this.onLobby = onLobby; this.onState = onState; this.onError = onError; this.onStatus = onStatus || (() => {});
     this.host = new GameHost((seat, msg) => this.deliver(seat, msg));
-    this.mySeat = this.host.addHuman(name, 'host');
+    this.host.onPersist = state => this.save(state);
+    if (restore) { this.mySeat = 0; this.host.restore(restore.state); }
+    else this.mySeat = this.host.addHuman(name, 'host');
     this.destroyed = false;
     this.openPeer(onReady);
+  }
+  save(state) {
+    if (this.destroyed || !this.storage) return;
+    try {
+      if (state.game && state.game.phase === 'playing') this.storage.setItem(SAVE_KEY, JSON.stringify({ code: this.code, name: this.name, state }));
+      else this.storage.removeItem(SAVE_KEY);
+    } catch {}
   }
   openPeer(onReady) {
     this.peer = newPeer(PREFIX + this.code);
     this.peer.on('open', () => { this.onStatus('ok'); onReady && onReady(this.code); });
     this.peer.on('error', e => {
-      if (e.type === 'unavailable-id') { this.code = makeCode(); this.peer.destroy(); this.openPeer(onReady); }
+      if (e.type === 'unavailable-id') {
+        // 복구 중 옛 코드가 아직 서버에 남아 있으면 잠시 뒤 다시 시도(코드를 바꾸면 참가자가 못 찾는다)
+        if (this.restoring) { this.peer.destroy(); setTimeout(() => !this.destroyed && this.openPeer(onReady), 2000); return; }
+        this.code = makeCode(); this.peer.destroy(); this.openPeer(onReady);
+      }
       else this.onError && this.onError(e.type || String(e));
     });
     this.peer.on('disconnected', () => { if (!this.destroyed) { this.onStatus('reconnecting'); setTimeout(() => !this.destroyed && this.peer.reconnect(), 1000); } });
@@ -74,8 +111,9 @@ export class HostSession {
   removeSeat(i) { const s = this.host.seats[i]; const c = s && this.conns.get(s.token); if (c) c.close(); this.host.removeSeat(i); }
   setTurnLimit(s) { this.host.setTurnLimit(s); }
   start() { return this.host.start(); }
+  rematch() { return this.host.rematch(); }
   dispatch(action) { const r = this.host.applyAction(this.mySeat, action); if (!r.ok) this.onError(r.error); return r; }
-  destroy() { this.destroyed = true; try { this.peer.destroy(); } catch {} }
+  destroy() { this.destroyed = true; clearHostSave(this.storage); try { this.peer.destroy(); } catch {} }
 }
 
 /** 참가자: 연결이 끊기면 같은 토큰으로 자동 재접속(자리 복구) */

@@ -1,8 +1,8 @@
-import { createGame, current, moveTiles, endTurn, drawTile, resetTurn, MIN_PLAYERS, MAX_PLAYERS, runCpuTurn } from './game.js';
+import { createGame, current, moveTiles, endTurn, drawTile, resetTurn, undoMove, MIN_PLAYERS, MAX_PLAYERS, runCpuTurn } from './game.js';
 import { analyzeSet, COLORS, canExtend } from './rules.js';
 import { buildView } from './view.js';
 import { planCpuTurn } from './cpu.js';
-import { HostSession, ClientSession, makeToken } from './net.js';
+import { HostSession, ClientSession, makeToken, loadHostSave, clearHostSave } from './net.js';
 
 const $ = id => document.getElementById(id);
 const screens = ['setup', 'lobby', 'handoff', 'game', 'over'];
@@ -20,6 +20,12 @@ let countdownTimer = null;
 let suggestIds = new Set();  // 추천으로 깜빡일 타일
 let lastMoved = new Set();   // 직전 조작으로 옮긴 타일 id (놓은 곳 강조용)
 let lastMovedAt = 0;
+let tidy = false;            // 바닥 묶음을 정렬해서 보기(내 화면만)
+let wasMyTurn = false;       // 내 차례 알림용
+let prefs = { symbols: false, alert: true };
+try { prefs = { ...prefs, ...JSON.parse(localStorage.getItem('rummi-prefs') || '{}') }; } catch {}
+function savePrefs() { try { localStorage.setItem('rummi-prefs', JSON.stringify(prefs)); } catch {} }
+document.body.classList.toggle('symbols', prefs.symbols);
 
 // ========== 설정 화면 ==========
 document.querySelectorAll('.tab').forEach(btn => btn.addEventListener('click', () => {
@@ -48,23 +54,43 @@ $('startBtn').addEventListener('click', () => {
   localFlow();
 });
 
-$('hostBtn').addEventListener('click', () => {
-  const name = $('hostName').value.trim() || '방장';
+function startHost(name, restore = null) {
   mode = 'host'; selected.clear();
-  $('lobbyCode').textContent = '연결 중…';
+  $('lobbyCode').textContent = '연결 중…'; $('qr').innerHTML = '';
   show('lobby');
   try {
     session = new HostSession({
-      name,
-      onReady: code => { $('lobbyCode').textContent = code; $('lobbyLink').textContent = `${location.origin}${location.pathname}?room=${code}`; },
+      name, restore,
+      onReady: code => {
+        $('lobbyCode').textContent = code;
+        const link = `${location.origin}${location.pathname}?room=${code}`;
+        $('lobbyLink').textContent = link; renderQr(link);
+      },
       onLobby: renderLobby,
       onState: onView,
       onError: msg => flash(msg),
       onStatus: st => setNetStatus(st),
     });
-  } catch (e) { alert(e.message); show('setup'); }
-  renderLobby(session.host.lobbyState());
-});
+  } catch (e) { alert(e.message); show('setup'); return; }
+  if (!restore) renderLobby(session.host.lobbyState());
+}
+function renderQr(link) {
+  const box = $('qr'); box.innerHTML = '';
+  if (typeof QRCode === 'undefined') return;
+  try { new QRCode(box, { text: link, width: 140, height: 140, colorDark: '#000000', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M }); } catch {}
+}
+// 방장 새로고침 복구: 저장된 판이 있으면 '이어하기' 상자
+function checkResume() {
+  const save = loadHostSave();
+  $('resumeBox').classList.toggle('hidden', !save);
+  if (!save) return;
+  const st = save.state;
+  $('resumeInfo').textContent = `방 ${save.code} · ${st.seats.map(x => x.name).join(', ')} · ${st.game ? st.game.round || 1 : 1}판째`;
+  $('resumeBtn').onclick = () => startHost(save.name || '방장', save);
+  $('resumeDrop').onclick = () => { clearHostSave(); checkResume(); };
+}
+
+$('hostBtn').addEventListener('click', () => startHost($('hostName').value.trim() || '방장'));
 $('joinBtn').addEventListener('click', () => {
   const code = $('joinCode').value.trim().toUpperCase();
   const name = $('joinName').value.trim() || '손님';
@@ -73,7 +99,8 @@ $('joinBtn').addEventListener('click', () => {
   let token = null;
   try { token = sessionStorage.getItem('rummi-token-' + code); } catch {}
   if (!token) { token = makeToken(); try { sessionStorage.setItem('rummi-token-' + code, token); } catch {} }
-  $('lobbyCode').textContent = code; $('lobbyLink').textContent = '';
+  $('lobbyCode').textContent = code; $('lobbyLink').textContent = ''; $('qr').innerHTML = '';
+  try { sessionStorage.setItem('rummi-last-join', JSON.stringify({ code, name })); } catch {}
   $('lobbyStatus').textContent = '방에 들어가는 중…';
   show('lobby');
   session = new ClientSession({
@@ -89,6 +116,12 @@ $('leaveBtn').addEventListener('click', () => { session && session.destroy(); se
 // URL ?room=CODE 로 들어오면 참가 탭 자동 선택
 const roomParam = new URLSearchParams(location.search).get('room');
 if (roomParam) { $('joinCode').value = roomParam.toUpperCase(); document.querySelector('[data-pane="paneJoin"]').click(); }
+else {
+  // 참가자가 새로고침한 경우: 직전 방 코드·이름을 미리 채워 바로 다시 들어갈 수 있게
+  try { const j = JSON.parse(sessionStorage.getItem('rummi-last-join') || 'null'); if (j) { $('joinCode').value = j.code; $('joinName').value = j.name; document.querySelector('[data-pane="paneJoin"]').click(); } } catch {}
+}
+// 게임 중 탭을 닫거나 새로고침하면 확인
+window.addEventListener('beforeunload', e => { if (view && view.phase === 'playing') { e.preventDefault(); e.returnValue = ''; } });
 
 // ========== 로비 ==========
 function renderLobby(lobby) {
@@ -133,6 +166,7 @@ function localDispatch(a) {
   switch (a.type) {
     case 'move': moveTiles(game, a.ids, a.to); break;
     case 'reset': resetTurn(game); break;
+    case 'undo': if (!undoMove(game)) return flash('되돌릴 수가 없어요.'); break;
     case 'draw': drawTile(game); return localFlow();
     case 'end': { const r = endTurn(game); if (!r.ok) return flash(r.reason); return localFlow(); }
   }
@@ -177,7 +211,7 @@ function attachDrag(el, id) {
   el.addEventListener('pointerdown', e => {
     if (e.button !== undefined && e.button !== 0) return;
     const srcSet = el.closest('.set');
-    const fromSet = srcSet ? [...$('table').children].indexOf(srcSet) : -1;
+    const fromSet = srcSet ? Number(srcSet.dataset.idx) : -1;
     drag = { id, startX: e.clientX, startY: e.clientY, moved: false, ghost: null, pointerId: e.pointerId, source: el, fromSet };
   });
 }
@@ -233,7 +267,7 @@ function smartTarget(ids, x, y, excludeIdx = -1) {
     if (idx === excludeIdx) return;
     const rest = set.filter(t => !idSet.has(t.id));
     if (rest.length === 0 || !canExtend(rest, tiles)) return;
-    const el = $('table').children[idx]; if (!el) return;
+    const el = setEl(idx); if (!el) return;
     const r = el.getBoundingClientRect();
     const dx = Math.max(r.left - x, 0, x - r.right), dy = Math.max(r.top - y, 0, y - r.bottom);
     const dist = Math.hypot(dx, dy);
@@ -257,7 +291,7 @@ function dropTargetAt(x, y) {
   const el = document.elementFromPoint(x, y);
   if (!el) return null;
   const set = el.closest('.set');
-  if (set && set.parentElement === $('table')) return { kind: 'set', index: [...$('table').children].indexOf(set) };
+  if (set && set.parentElement === $('table')) return { kind: 'set', index: Number(set.dataset.idx) };
   if (el.closest('#table')) return { kind: 'new' };
   if (el.closest('#rack')) return { kind: 'rack' };
   return null;
@@ -266,9 +300,24 @@ function highlightDropTarget(x, y) {
   document.querySelectorAll('.drop-hover').forEach(el => el.classList.remove('drop-hover'));
   const t = dropTargetAt(x, y);
   if (!t) return;
-  if (t.kind === 'set') $('table').children[t.index].classList.add('drop-hover');
+  if (t.kind === 'set') { const el = setEl(t.index); el && el.classList.add('drop-hover'); }
   else if (t.kind === 'new') $('table').classList.add('drop-hover');
   else $('rack').classList.add('drop-hover');
+}
+function setEl(idx) { return $('table').querySelector(`.set[data-idx="${idx}"]`); }
+/** 바닥 묶음 표시 순서: 정리 모드면 연속 묶음(색→시작 숫자) → 같은 숫자 묶음(숫자) → 아직 안 맞는 묶음 */
+function displayOrder(table) {
+  const idx = table.map((_, i) => i);
+  if (!tidy) return idx;
+  const keyOf = set => {
+    const a = analyzeSet(set);
+    if (!a.ok) return [2, 0, 0];
+    const real = a.ordered.filter(t => !t.joker);
+    if (a.kind === 'run') return [0, COLORS.indexOf(real[0].color), real[0].num - a.ordered.indexOf(real[0])];
+    return [1, real[0].num, 0];
+  };
+  const keys = table.map(keyOf);
+  return idx.sort((x, y) => keys[x][0] - keys[y][0] || keys[x][1] - keys[y][1] || keys[x][2] - keys[y][2] || x - y);
 }
 function sortRack(rack) {
   const ci = t => (t.joker ? 99 : COLORS.indexOf(t.color));
@@ -294,10 +343,12 @@ function render(cpuView = false) {
     banner.classList.remove('hidden');
   } else banner.classList.add('hidden');
   const table = $('table'); table.innerHTML = '';
-  v.table.forEach((set, idx) => {
+  displayOrder(v.table).forEach(idx => {
+    const set = v.table[idx];
     const a = analyzeSet(set);
     const el = document.createElement('div');
     el.className = 'set' + (a.ok ? '' : ' invalid');
+    el.dataset.idx = idx;
     if (!v.snapshotSetKeys.includes(set.map(t => t.id).sort().join(','))) el.classList.add('changed');
     const fresh = Date.now() - lastMovedAt < 1500;
     if (fresh && set.some(t => lastMoved.has(t.id))) el.classList.add('just-dropped');
@@ -337,6 +388,12 @@ function render(cpuView = false) {
     hint.className = 'hint ' + (r.ok ? 'good' : 'bad');
   }
   for (const id of ['resetBtn', 'drawBtn', 'endBtn']) $(id).disabled = !myTurn;
+  $('undoBtn').disabled = !myTurn || !v.canUndo;
+  $('tidyBtn').classList.toggle('on', tidy);
+  // 내 차례가 새로 시작되면 알림(온라인만)
+  if (myTurn && !wasMyTurn && mode !== 'local') notifyTurn();
+  wasMyTurn = myTurn;
+  document.title = myTurn && mode !== 'local' ? '● 내 차례 - 루미큐브' : '루미큐브';
   const allowSuggest = v.players.every((p, i) => i === v.seat || p.type === 'cpu');   // 나 빼고 전부 컴퓨터일 때만
   $('suggestBtn').classList.toggle('hidden', !allowSuggest);
   $('autoPlayBtn').classList.toggle('hidden', !allowSuggest);
@@ -346,6 +403,20 @@ function render(cpuView = false) {
   startCountdown(v.deadline);
 }
 
+let audioCtx = null;
+document.addEventListener('pointerdown', () => { if (!audioCtx && prefs.alert && 'AudioContext' in window) { try { audioCtx = new AudioContext(); } catch {} } }, { once: false });
+function notifyTurn() {
+  if (!prefs.alert) return;
+  try { navigator.vibrate && navigator.vibrate([150, 80, 150]); } catch {}
+  if (!audioCtx) return;
+  try {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(660, audioCtx.currentTime); o.frequency.setValueAtTime(880, audioCtx.currentTime + 0.12);
+    g.gain.setValueAtTime(0.0001, audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.25, audioCtx.currentTime + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.3);
+    o.connect(g).connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime + 0.32);
+  } catch {}
+}
 function startCountdown(deadline) {
   clearInterval(countdownTimer);
   const el = $('timer');
@@ -465,6 +536,8 @@ $('suggestBtn').addEventListener('click', () => {
   hint.className = 'hint good';
 });
 $('resetBtn').addEventListener('click', () => { selected.clear(); dispatch({ type: 'reset' }); });
+$('undoBtn').addEventListener('click', () => { selected.clear(); dispatch({ type: 'undo' }); });
+$('tidyBtn').addEventListener('click', () => { tidy = !tidy; render(); });
 $('sortBtn').addEventListener('click', () => { sortMode = sortMode === 'num' ? 'color' : 'num'; render(); });
 $('drawBtn').addEventListener('click', () => { selected.clear(); dispatch({ type: 'draw' }); });
 $('endBtn').addEventListener('click', () => { selected.clear(); dispatch({ type: 'end' }); });
@@ -472,19 +545,39 @@ $('endBtn').addEventListener('click', () => { selected.clear(); dispatch({ type:
 // ========== 종료 ==========
 function renderOver(v) {
   clearInterval(countdownTimer);
+  wasMyTurn = false; document.title = '루미큐브';
   const w = v.players[v.winner];
+  const round = v.round || 1;
+  $('roundInfo').textContent = `${round}판째 결과`;
   $('winnerText').textContent = `🏆 ${w.name} 승리!`;
-  $('scoreTable').innerHTML = '<tr><th>플레이어</th><th>남은 타일</th><th>점수</th></tr>' +
-    v.players.map(p => `<tr><td>${esc(p.name)}</td><td>${p.count}장</td><td>${p.score > 0 ? '+' : ''}${p.score}</td></tr>`).join('');
+  const sign = n => (n > 0 ? '+' : '') + n;
+  $('scoreTable').innerHTML = `<tr><th>플레이어</th><th>남은 타일</th><th>이번 판</th>${round > 1 ? '<th>누적</th>' : ''}</tr>` +
+    v.players.map(p => `<tr><td>${esc(p.name)}</td><td>${p.count}장</td><td>${sign(p.score)}</td>${round > 1 ? `<td class="total">${sign(p.total || 0)}</td>` : ''}</tr>`).join('');
+  const canRematch = mode !== 'client';
+  $('rematchBtn').classList.toggle('hidden', !canRematch);
+  $('rematchWait').classList.toggle('hidden', canRematch);
   show('over');
 }
-$('againBtn').addEventListener('click', () => { session && session.destroy(); session = null; show('setup'); });
+$('rematchBtn').addEventListener('click', () => {
+  selected.clear(); lastMoved.clear();
+  if (mode === 'local') {
+    const v = view;
+    game = createGame(v.players.map(p => ({ name: p.name, type: p.type, total: p.total || 0 })), Math.random, { round: (v.round || 1) + 1 });
+    lastHumanShown = -1; return localFlow();
+  }
+  if (mode === 'host') session.rematch();
+});
+$('againBtn').addEventListener('click', () => { session && session.destroy(); session = null; view = null; show('setup'); checkResume(); });
 
 // 도움말
 $('helpBtn').addEventListener('click', () => $('help').classList.remove('hidden'));
 $('helpClose').addEventListener('click', () => { $('help').classList.add('hidden'); try { localStorage.setItem('rummi-help-seen', '1'); } catch {} });
 $('help').addEventListener('click', e => { if (e.target === $('help')) $('helpClose').click(); });
+$('symbolToggle').checked = prefs.symbols; $('alertToggle').checked = prefs.alert;
+$('symbolToggle').addEventListener('change', () => { prefs.symbols = $('symbolToggle').checked; document.body.classList.toggle('symbols', prefs.symbols); savePrefs(); });
+$('alertToggle').addEventListener('change', () => { prefs.alert = $('alertToggle').checked; savePrefs(); });
 function maybeShowHelp() { let seen = false; try { seen = !!localStorage.getItem('rummi-help-seen'); } catch {} if (!seen) $('help').classList.remove('hidden'); }
 
 renderSetupRows();
 show('setup');
+checkResume();

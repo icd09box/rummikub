@@ -1,5 +1,5 @@
 // 방장(호스트) 로직: 자리 배정, 행동 검증·적용, 각 참가자 시점 view 전송. 네트워크 구현에 독립.
-import { createGame, current, moveTiles, endTurn, drawTile, resetTurn, runCpuTurn } from './game.js';
+import { createGame, current, moveTiles, endTurn, drawTile, resetTurn, undoMove, runCpuTurn } from './game.js';
 import { buildView } from './view.js';
 
 export const TURN_LIMITS = [0, 60, 120];
@@ -18,7 +18,24 @@ export class GameHost {
     this.turnLimit = 0;    // 초, 0 = 없음
     this.deadline = null;
     this._timer = null;
+    this.round = 0;        // 끝난 판 수
+    this.onPersist = null; // 상태가 바뀔 때마다 호출(방장 새로고침 복구용)
   }
+
+  // ---------- 저장·복구 ----------
+  /** JSON으로 저장할 수 있는 전체 상태 */
+  serialize() {
+    return { seats: this.seats, game: this.game, turnLimit: this.turnLimit, round: this.round, savedAt: Date.now() };
+  }
+  /** serialize()한 상태로 되살림. 타이머·CPU 차례는 다시 돈다. */
+  restore(data) {
+    this.seats = data.seats.map(s => ({ ...s, connected: s.type === 'cpu' || s.token === 'host' }));
+    this.turnLimit = data.turnLimit || 0; this.round = data.round || 0;
+    this.game = data.game || null;
+    if (this.game) this.game.players.forEach((p, i) => { p.connected = this.seats[i].connected; });
+    if (this.game && this.game.phase === 'playing') this.afterChange(true); else if (this.game) this.broadcastState(); else this.broadcastLobby();
+  }
+  persist() { if (this.onPersist) this.onPersist(this.serialize()); }
 
   // ---------- 로비 ----------
   addHuman(name, token) {
@@ -55,15 +72,24 @@ export class GameHost {
   lobbyState() {
     return { t: 'lobby', players: this.seats.map(s => ({ name: s.name, type: s.type, connected: s.connected })), turnLimit: this.turnLimit };
   }
-  broadcastLobby() { this.seats.forEach((s, i) => s.type === 'human' && this.send(i, this.lobbyState())); }
+  broadcastLobby() { this.seats.forEach((s, i) => s.type === 'human' && this.send(i, this.lobbyState())); this.persist(); }
 
   canStart() { return !this.game && this.seats.length >= 2 && this.seats.length <= 4; }
   start(rng) {
     if (!this.canStart()) return false;
-    this.game = createGame(this.seats.map(s => ({ name: s.name, type: s.type })), rng);
+    const totals = this._totals || [];
+    this.game = createGame(this.seats.map((s, i) => ({ name: s.name, type: s.type, total: totals[i] || 0 })), rng, { round: this.round + 1 });
     this.game.players.forEach((p, i) => { p.connected = this.seats[i].connected; });
     this.afterChange(true);
     return true;
+  }
+  /** 판이 끝난 뒤 같은 사람들로 다음 판. 누적 점수는 이어진다. */
+  rematch(rng) {
+    if (!this.game || this.game.phase !== 'over') return false;
+    this._totals = this.game.players.map(p => p.total);
+    this.round += 1;
+    this.game = null;
+    return this.start(rng);
   }
 
   // ---------- 접속 ----------
@@ -100,6 +126,7 @@ export class GameHost {
         moveTiles(g, a.ids, a.to); break;
       }
       case 'reset': resetTurn(g); break;
+      case 'undo': if (!undoMove(g)) return { ok: false, error: '되돌릴 수가 없어요.' }; break;
       case 'draw': drawTile(g); turnEnded = true; break;
       case 'end': { const r = endTurn(g); if (!r.ok) return { ok: false, error: r.reason }; turnEnded = true; break; }
       default: return { ok: false, error: '알 수 없는 행동' };
@@ -139,5 +166,6 @@ export class GameHost {
       if (s.type !== 'human') return;
       this.send(i, { t: 'state', view: buildView(this.game, i, { deadline: this.deadline }) });
     });
+    this.persist();
   }
 }

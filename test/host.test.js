@@ -81,3 +81,48 @@ test('끊긴 사람 차례는 자동 뽑기, 같은 이름으로 복귀', () => 
   assert.equal(h.addHuman('B', 'tb2'), 1);
   assert.equal(h.game.players[1].connected, true);
 });
+
+test('한 수 취소: 직전 이동만 되돌리고, 처음대로 뒤엔 되돌릴 게 없다', () => {
+  const { h } = mkHost();
+  h.addHuman('A', 'ta'); h.addHuman('B', 'tb'); h.start(seeded);
+  const g = h.game; const p = g.players[0];
+  const [a, b] = p.rack;
+  h.applyAction(0, { type: 'move', ids: [a.id], to: { kind: 'new' } });
+  h.applyAction(0, { type: 'move', ids: [b.id], to: { kind: 'new' } });
+  assert.equal(g.table.length, 2);
+  assert.ok(h.applyAction(0, { type: 'undo' }).ok);
+  assert.equal(g.table.length, 1); assert.equal(p.rack.length, 13);
+  h.applyAction(0, { type: 'reset' });
+  assert.equal(h.applyAction(0, { type: 'undo' }).ok, false);
+  assert.equal(g.table.length, 0); assert.equal(p.rack.length, 14);
+});
+
+test('같은 사람들과 다음 판: 누적 점수와 판 수가 이어진다', () => {
+  const { h, sent } = mkHost();
+  h.addHuman('A', 'ta'); h.addCpu(); h.start(seeded);
+  assert.equal(h.rematch(), false);                 // 진행 중엔 불가
+  // 강제 종료: A가 다 낸 것으로
+  const g = h.game; g.players[0].rack = []; g.players[1].rack = g.players[1].rack.slice(0, 2);
+  g.phase = 'over'; g.winner = 0; g.players[0].score = 15; g.players[1].score = -15; g.players[0].total = 15; g.players[1].total = -15;
+  assert.ok(h.rematch(seeded));
+  assert.equal(h.game.phase, 'playing'); assert.equal(h.game.round, 2);
+  assert.equal(h.game.players[0].total, 15); assert.equal(h.game.players[1].total, -15);
+  const v = sent.filter(x => x.msg.t === 'state').at(-1).msg.view;
+  assert.equal(v.round, 2); assert.equal(v.players[0].total, 15); assert.equal(v.rack.length, 14);
+});
+
+test('저장·복구: 같은 판·같은 자리로 되살리고 참가자는 끊김 상태로 시작', () => {
+  const { h } = mkHost();
+  let saved = null; h.onPersist = s => { saved = JSON.parse(JSON.stringify(s)); };
+  h.addHuman('방장', 'host'); h.addHuman('B', 'tb'); h.addCpu(); h.start(seeded);
+  h.applyAction(0, { type: 'draw' });
+  assert.ok(saved && saved.game && saved.game.turn === 1);
+  const { h: h2, sent } = mkHost();
+  h2.restore(saved);
+  assert.equal(h2.seats.length, 3); assert.equal(h2.game.turn, 1);
+  assert.equal(h2.seats[0].connected, true); assert.equal(h2.seats[1].connected, false); assert.equal(h2.seats[2].connected, true);
+  assert.deepEqual(h2.game.players[0].rack.map(t => t.id), h.game.players[0].rack.map(t => t.id));
+  assert.ok(sent.some(x => x.msg.t === 'state'));
+  // B가 같은 토큰으로 돌아오면 같은 자리
+  assert.equal(h2.addHuman('B', 'tb'), 1); assert.equal(h2.seats[1].connected, true);
+});

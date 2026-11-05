@@ -99,3 +99,30 @@ test('온라인: 추천대로 내기와 같은 순서의 move 묶음이 방장�
   assert.ok(r.ok); assert.equal(g.players[0].hasMelded, true);
   a.s.destroy(); host.destroy();
 });
+
+test('방장 저장본: 게임 중엔 localStorage에 남고, 복구하면 같은 코드로 참가자가 돌아온다', async () => {
+  const store = new Map();
+  const storage = { getItem: k => store.has(k) ? store.get(k) : null, setItem: (k, v) => store.set(k, v), removeItem: k => store.delete(k) };
+  const { loadHostSave } = await import('../js/net.js');
+  const host = new HostSession({ name: '방장', storage, onLobby() {}, onState() {}, onError() {} });
+  await tick();
+  const c = mkClient(host.code, 'B', 'tokB'); await tick();
+  host.addCpu(); host.start(); await tick();
+  const save = loadHostSave(storage);
+  assert.ok(save && save.code === host.code && save.state.game.phase === 'playing');
+  // 방장이 새로고침: 옛 peer 사라짐(저장본은 남아야 함)
+  host.peer.destroy(); host.destroyed = true;
+  assert.ok(loadHostSave(storage));
+  const views = [];
+  const host2 = new HostSession({ name: '방장', storage, restore: save, onLobby() {}, onState: v => views.push(v), onError() {} });
+  await tick();
+  assert.equal(host2.code, host.code);
+  assert.equal(host2.host.seats[1].connected, false);
+  // 참가자 재접속(같은 토큰) → 자리 1 복구, 상태 수신
+  c.s.reconnectNow(); await tick(40);
+  assert.equal(c.seat, 1);
+  assert.equal(host2.host.seats[1].connected, true);
+  assert.ok(c.views.at(-1).rack.length === 14);
+  host2.destroy(); c.s.destroy();
+  assert.equal(loadHostSave(storage), null);
+});
