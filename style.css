@@ -284,6 +284,7 @@ body.is-dragging .table, body.is-dragging .rack { overflow: hidden; }
 .setup-card label { color: var(--muted); font-size: 13px; margin: 12px 0 6px; }
 .setup-card input[type="text"], .setup-card select { display: block; width: 100%; margin-top: 6px; background: var(--input); color: var(--text); border: 1px solid #44584a; border-radius: 10px; padding: 12px 14px; font-size: 16px; }
 .setup-card input:focus, .setup-card select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(143,219,36,.2); }
+select option { background: var(--panel); color: var(--text); }   /* 펼친 목록 배경이 흰색이라 밝은 글자가 안 보임 */
 .setup-card input::placeholder { color: #6f7f6c; }
 .setup-card .player-row { display: grid; grid-template-columns: 24px 1fr 96px; gap: 8px; align-items: center; margin: 8px 0; }
 .setup-card .player-row span { color: var(--muted); font-size: 13px; text-align: center; }
