@@ -334,8 +334,25 @@ document.addEventListener('pointerup', e => {
     selected.clear(); return dispatch({ type: 'move', ids: mine, to: { kind: 'rack' } });
   }
   selected.clear();
-  dispatch({ type: 'move', ids: d.ids, to: target.kind === 'new' ? smartTarget(d.ids, e.clientX, e.clientY, d.fromSet) : target });
+  dispatch(moveAction(d.ids, target.kind === 'new' ? smartTarget(d.ids, e.clientX, e.clientY, d.fromSet) : target));
 });
+
+/** 7 8 9 10 11에 같은 색 9를 놓으면 7 8 9 / 9 10 11로 알아서 나눈다(양쪽 다 3장 이상일 때만) */
+function moveAction(ids, to) {
+  const plain = { type: 'move', ids, to };
+  if (to.kind !== 'set' || ids.length !== 1) return plain;
+  const tile = [...view.table.flat(), ...view.rack].find(t => t.id === ids[0]);
+  const set = view.table[to.index];
+  if (!tile || tile.joker || !set) return plain;
+  const a = analyzeSet(set);
+  if (!a.ok || a.kind !== 'run') return plain;
+  const real = a.ordered.filter(t => !t.joker);
+  if (real[0].color !== tile.color) return plain;
+  const start = real[0].num - a.ordered.indexOf(real[0]), end = start + a.ordered.length - 1;
+  if (tile.num - start < 2 || end - tile.num < 2) return plain;
+  const right = a.ordered.filter((t, i) => start + i > tile.num).map(t => t.id);
+  return { type: 'move', ids: [tile.id, ...right], to: { kind: 'new' } };
+}
 
 /** 빈 곳에 놓았을 때: 붙을 수 있는 세트 중 가장 가까운 것, 없으면 새 세트 */
 function smartTarget(ids, x, y, excludeIdx = -1) {
@@ -677,7 +694,7 @@ function onSetClick(e, idx) {
     if (selected.size === 0 || selected.has(id) || [...selected].some(s => onTable.has(s))) { toggle(id); return render(); }
   }
   if (selected.size === 0) return;
-  dispatch({ type: 'move', ids: [...selected], to: { kind: 'set', index: idx } }); selected.clear();
+  dispatch(moveAction([...selected], { kind: 'set', index: idx })); selected.clear();
 }
 function computePlan() {
   const v = view; const me = v.players[v.seat];
