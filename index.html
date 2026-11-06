@@ -29,11 +29,12 @@
       <p>2~4명이 각자 폰으로, 또는 한 폰을 돌려 가며</p>
     </div>
     <div class="tabs">
-      <button class="tab active" data-pane="paneLocal">같은 기기</button>
-      <button class="tab" data-pane="paneHost">온라인 방 만들기</button>
+      <button class="tab active" data-pane="paneHost">방 만들기</button>
       <button class="tab" data-pane="paneJoin">참가하기</button>
+      <button class="tab hidden" data-pane="paneLocal" id="tabLocal">같은 기기</button>
     </div>
-    <div id="paneLocal" class="tabpane">
+    <div id="paneLocal" class="tabpane hidden">
+      <p class="muted">인터넷이 안 될 때 한 폰을 돌려 가며 하는 모드예요.</p>
       <label>인원
         <select id="playerCount">
           <option value="2">2명</option>
@@ -44,7 +45,7 @@
       <div id="playerRows"></div>
       <button id="startBtn" class="primary big">게임 시작</button>
     </div>
-    <div id="paneHost" class="tabpane hidden">
+    <div id="paneHost" class="tabpane">
       <div id="resumeBox" class="resume hidden">
         <p>끝나지 않은 판이 있어요: <b id="resumeInfo"></b></p>
         <button id="resumeBtn" class="primary">같은 방 코드로 이어하기</button>
@@ -62,6 +63,7 @@
     <details class="rules">
       <summary>게임 방법 (쉬운 설명)</summary>
       <ul>
+        <li>방을 만들면 코드와 링크가 나와요. 친구가 링크를 열면 바로 참가돼요. 각자 자기 폰으로 해요.</li>
         <li>각자 타일 14장을 받고, 바닥에 <b>묶음</b>을 만들어 내려놓으며 내 타일을 먼저 다 없애면 이겨요.</li>
         <li><b>묶음은 두 가지</b>: ① 같은 숫자인데 색이 다른 타일 3~4장 (예: 빨강7·파랑7·검정7) ② 같은 색의 이어지는 숫자 3장 이상 (예: 파랑 4·5·6). 13 다음에 1은 안 돼요.</li>
         <li><b>처음 한 번은</b> 바닥 타일 없이 내 타일만으로 합계 30점 이상 되는 묶음을 내야 해요. 그 다음부터는 바닥 묶음에 끼워 넣거나 다시 짜도 돼요.</li>
@@ -78,21 +80,32 @@
 
 <!-- 로비 -->
 <section id="lobby" class="screen hidden">
-  <div class="card center">
-    <h2>방 코드 <span id="lobbyCode" class="code"></span></h2>
-    <p id="lobbyLink" class="muted small"></p>
+  <div class="card setup-card lobby-card">
+    <div class="code-box">
+      <div class="code-label">방 코드</div>
+      <div id="lobbyCode" class="code"></div>
+      <div class="code-actions">
+        <button id="copyLinkBtn" class="mini">링크 복사</button>
+        <button id="shareBtn" class="mini hidden">공유</button>
+      </div>
+      <p id="lobbyLink" class="muted small"></p>
+    </div>
     <div id="qr" class="qr"></div>
-    <div id="lobbyPlayers" class="players left"></div>
-    <p id="lobbyStatus" class="muted"></p>
-    <p id="turnLimitView" class="muted"></p>
+    <div class="lobby-section">
+      <div class="lobby-head"><span>함께 할 사람</span><span id="lobbyStatus" class="muted"></span></div>
+      <div id="lobbyPlayers" class="players left"></div>
+    </div>
+    <p id="turnLimitView" class="muted small"></p>
     <div id="hostControls" class="hidden">
       <label>한 차례 제한시간
         <select id="turnLimit"><option value="0">없음</option><option value="60">60초</option><option value="120">120초</option></select>
       </label>
-      <button id="addCpuBtn">컴퓨터 추가</button>
-      <button id="lobbyStart" class="primary" disabled>게임 시작</button>
+      <div class="row">
+        <button id="addCpuBtn">컴퓨터 추가</button>
+        <button id="lobbyStart" class="primary" disabled>게임 시작</button>
+      </div>
     </div>
-    <button id="leaveBtn">나가기</button>
+    <button id="leaveBtn" class="ghost-btn">나가기</button>
   </div>
 </section>
 
@@ -141,13 +154,14 @@
 
 <!-- 종료 화면 -->
 <section id="over" class="screen hidden">
-  <div class="card center">
+  <div class="card setup-card over-card">
     <p id="roundInfo" class="muted"></p>
+    <div class="trophy">🏆</div>
     <h2 id="winnerText"></h2>
     <table id="scoreTable" class="scores"></table>
     <p id="rematchWait" class="muted hidden">방장이 다음 판을 시작하길 기다리는 중…</p>
-    <button id="rematchBtn" class="primary">같은 사람들과 다음 판</button>
-    <button id="againBtn">그만하기</button>
+    <button id="rematchBtn" class="primary big">같은 사람들과 다음 판</button>
+    <button id="againBtn" class="ghost-btn">그만하기</button>
   </div>
 </section>
 
@@ -171,6 +185,7 @@
       <label class="inline"><input type="checkbox" id="symbolToggle"> 색 옆에 기호도 표시 (색 구분이 어려울 때)</label>
       <label class="inline"><input type="checkbox" id="alertToggle" checked> 내 차례가 오면 소리·진동으로 알림 (온라인)</label>
       <label class="inline"><input type="checkbox" id="pinpointToggle" checked> 규칙에 안 맞는 묶음에서 문제 타일을 빨갛게 짚어 주기</label>
+      <label class="inline"><input type="checkbox" id="localToggle"> 인터넷이 안 될 때 쓰는 "같은 기기" 모드 보이기</label>
     </div>
     <button id="helpClose" class="primary">알겠어요</button>
   </div>

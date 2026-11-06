@@ -25,7 +25,7 @@ let lastMoved = new Set();   // 직전 조작으로 옮긴 타일 id (놓은 곳
 let lastMovedAt = 0;
 let tidy = false;            // 바닥 묶음을 정렬해서 보기(내 화면만)
 let wasMyTurn = false;       // 내 차례 알림용
-let prefs = { symbols: false, alert: true, pinpoint: true, rows: 'one' };
+let prefs = { symbols: false, alert: true, pinpoint: true, rows: 'one', local: false };
 let rackCollapsed = false;
 let lastReactionAt = 0;
 try { prefs = { ...prefs, ...JSON.parse(localStorage.getItem('rummi-prefs') || '{}') }; } catch {}
@@ -117,6 +117,18 @@ $('joinBtn').addEventListener('click', () => {
   });
 });
 $('leaveBtn').addEventListener('click', () => { session && session.destroy(); session = null; show('setup'); });
+$('copyLinkBtn').addEventListener('click', async () => {
+  const link = $('lobbyLink').textContent || `${location.origin}${location.pathname}?room=${$('lobbyCode').textContent}`;
+  try { await navigator.clipboard.writeText(link); $('copyLinkBtn').textContent = '복사됨!'; } catch { $('copyLinkBtn').textContent = '길게 눌러 복사'; }
+  setTimeout(() => { $('copyLinkBtn').textContent = '링크 복사'; }, 1500);
+});
+if (navigator.share) {
+  $('shareBtn').classList.remove('hidden');
+  $('shareBtn').addEventListener('click', () => {
+    const link = $('lobbyLink').textContent || `${location.origin}${location.pathname}?room=${$('lobbyCode').textContent}`;
+    navigator.share({ title: '루미큐브 같이 해요', text: `방 코드 ${$('lobbyCode').textContent}`, url: link }).catch(() => {});
+  });
+}
 
 // URL ?room=CODE 로 들어오면 참가 탭 자동 선택
 const roomParam = new URLSearchParams(location.search).get('room');
@@ -190,6 +202,7 @@ function dispatch(a) {
 let helpChecked = false;
 function onView(v, cpuView = false) {
   view = v;
+  if (!cpuView && v.phase === 'playing') { const k = layoutKey(); if (layoutLoadedFor !== k) { layoutLoadedFor = k; loadLayout(); } }
   if (v.phase === 'over') return renderOver(v);
   show('game'); render(cpuView);
   if (!helpChecked && !cpuView) { helpChecked = true; maybeShowHelp(); }
@@ -347,6 +360,10 @@ function displayOrder(table) {
   return idx.sort((x, y) => keys[x][0] - keys[y][0] || keys[x][1] - keys[y][1] || keys[x][2] - keys[y][2] || x - y);
 }
 /** 내 맘대로 배치를 현재 손패에 맞춰 정리(없어진 id 제거, 새 id는 아래 줄 끝에) */
+function layoutKey() { return 'rummi-layout-' + (session ? (session.code + '-' + view.seat) : 'local-' + view.seat); }
+function saveLayout() { try { sessionStorage.setItem(layoutKey(), JSON.stringify({ mode: sortMode, layout: freeLayout })); } catch {} }
+function loadLayout() { try { const d = JSON.parse(sessionStorage.getItem(layoutKey()) || 'null'); if (d && d.layout) { freeLayout = d.layout; sortMode = d.mode || 'free'; } } catch {} }
+let layoutLoadedFor = null;
 function freeOrder(rack) {
   const byId = new Map(rack.map(t => [t.id, t]));
   const has = new Set(rack.map(t => t.id));
@@ -360,6 +377,7 @@ function freeOrder(rack) {
     missing.filter(id => !ids.includes(id)).forEach(id => freeLayout.bottom.push(id));
   } else freeLayout.bottom.push(...missing);
   pendingPlace = null;
+  saveLayout();
   return { top: freeLayout.top.map(id => byId.get(id)), bottom: freeLayout.bottom.map(id => byId.get(id)) };
 }
 function applyPlacement(ids, { zone, index }) {
@@ -644,6 +662,7 @@ function showReaction(r) {
 }
 $('sortBtn').addEventListener('click', () => {
   sortMode = { num: 'color', color: 'free', free: 'num' }[sortMode];
+  if (sortMode !== 'free') { try { sessionStorage.removeItem(layoutKey()); } catch {} }
   if (sortMode === 'free') { freeLayout = { top: [], bottom: [] }; freeLayout.bottom = sortRack(view.rack).map(t => t.id); flash('내 맘대로: 타일을 끌어서 순서를 바꾸고, 다 만든 묶음은 위 칸에 올려 두세요.'); $('hint').className = 'hint good'; }
   render();
 });
@@ -657,10 +676,10 @@ function renderOver(v) {
   const w = v.players[v.winner];
   const round = v.round || 1;
   $('roundInfo').textContent = `${round}판째 결과`;
-  $('winnerText').textContent = `🏆 ${w.name} 승리!`;
+  $('winnerText').textContent = `${w.name} 승리!`;
   const sign = n => (n > 0 ? '+' : '') + n;
   $('scoreTable').innerHTML = `<tr><th>플레이어</th><th>남은 타일</th><th>이번 판</th>${round > 1 ? '<th>누적</th>' : ''}</tr>` +
-    v.players.map(p => `<tr><td>${esc(p.name)}</td><td>${p.count}장</td><td>${sign(p.score)}</td>${round > 1 ? `<td class="total">${sign(p.total || 0)}</td>` : ''}</tr>`).join('');
+    v.players.map((p, i) => `<tr class="${i === v.winner ? 'winner' : ''}"><td>${esc(p.name)}</td><td>${p.count}장</td><td>${sign(p.score)}</td>${round > 1 ? `<td class="total">${sign(p.total || 0)}</td>` : ''}</tr>`).join('');
   const canRematch = mode !== 'client';
   $('rematchBtn').classList.toggle('hidden', !canRematch);
   $('rematchWait').classList.toggle('hidden', canRematch);
@@ -684,6 +703,13 @@ $('help').addEventListener('click', e => { if (e.target === $('help')) $('helpCl
 $('symbolToggle').checked = prefs.symbols; $('alertToggle').checked = prefs.alert;
 $('symbolToggle').addEventListener('change', () => { prefs.symbols = $('symbolToggle').checked; document.body.classList.toggle('symbols', prefs.symbols); savePrefs(); });
 $('alertToggle').addEventListener('change', () => { prefs.alert = $('alertToggle').checked; savePrefs(); });
+$('localToggle').checked = prefs.local;
+$('tabLocal').classList.toggle('hidden', !prefs.local);
+$('localToggle').addEventListener('change', () => {
+  prefs.local = $('localToggle').checked; savePrefs();
+  $('tabLocal').classList.toggle('hidden', !prefs.local);
+  if (!prefs.local && $('tabLocal').classList.contains('active')) document.querySelector('[data-pane="paneHost"]').click();
+});
 $('pinpointToggle').checked = prefs.pinpoint;
 $('pinpointToggle').addEventListener('change', () => { prefs.pinpoint = $('pinpointToggle').checked; savePrefs(); if (view && view.phase === 'playing') render(); });
 function maybeShowHelp() { let seen = false; try { seen = !!localStorage.getItem('rummi-help-seen'); } catch {} if (!seen) $('help').classList.remove('hidden'); }

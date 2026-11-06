@@ -274,7 +274,7 @@ body.is-dragging .table, body.is-dragging .rack { overflow: hidden; }
 .hero-tiles .tile:nth-child(4) { transform: rotate(5deg) translateY(-2px); }
 .hero h2 { margin: 0; font-size: 26px; letter-spacing: .12em; }
 .hero p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
-.setup-card .tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; background: #1b261d; padding: 4px; border-radius: 12px; margin-bottom: 16px; }
+.setup-card .tabs { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 0; background: #1b261d; padding: 4px; border-radius: 12px; margin-bottom: 16px; }
 .setup-card .tab { border: none; border-radius: 9px; background: transparent; color: var(--muted); padding: 10px 4px; font-size: 14px; font-weight: 600; white-space: nowrap; }
 .setup-card .tab.active { background: var(--accent); color: var(--accent-text); box-shadow: 0 2px 8px rgba(0,0,0,.35); }
 .setup-card label { color: var(--muted); font-size: 13px; margin: 12px 0 6px; }
@@ -310,3 +310,31 @@ button.big { width: 100%; padding: 14px; font-size: 16px; border-radius: 12px; m
 .rack.free .zone.drop-hover { box-shadow: inset 0 0 0 2px var(--accent); background: rgba(143,219,36,.15); }
 .rack.free .tile { flex: 0 0 auto; }
 @media (max-width: 720px) { .rack.free { padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); } .rack.free .zone { min-height: 56px; } }
+
+/* ===== 로비·결과 화면(설정 화면과 같은 톤) ===== */
+.lobby-card, .over-card { text-align: center; }
+.code-box { background: #1b261d; border-radius: 14px; padding: 14px 12px 10px; margin-bottom: 12px; }
+.code-label { color: var(--muted); font-size: 12px; letter-spacing: .1em; }
+.code-box .code { font-size: 36px; font-weight: 800; letter-spacing: .2em; margin: 2px 0 8px; }
+.code-actions { display: flex; gap: 6px; justify-content: center; }
+.code-actions .mini { padding: 6px 12px; font-size: 13px; }
+.code-box .small { margin: 8px 0 0; font-size: 11px; color: #6f7f6c; }
+.lobby-section { text-align: left; margin-top: 12px; }
+.lobby-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+.lobby-head #lobbyStatus { font-size: 12px; }
+.lobby-card .players .p { background: #1b261d; padding: 10px 12px; border-radius: 10px; margin-bottom: 6px; align-items: center; }
+.lobby-card .players .p small { color: var(--muted); font-weight: 400; margin-left: 4px; }
+.lobby-card #turnLimitView { text-align: left; margin: 4px 0; }
+.lobby-card #hostControls { display: block; margin: 10px 0 0; }
+.lobby-card #hostControls label { display: flex; align-items: center; gap: 8px; justify-content: space-between; margin: 0 0 10px; }
+.lobby-card #hostControls select { width: auto; margin: 0; padding: 8px 30px 8px 12px; }
+.lobby-card .row { display: flex; gap: 8px; }
+.lobby-card .row button { flex: 1; padding: 13px; font-size: 15px; border-radius: 12px; }
+.ghost-btn { width: 100%; margin-top: 10px; background: transparent; border-color: transparent; color: var(--muted); padding: 12px; }
+.over-card .trophy { font-size: 56px; line-height: 1; margin: 6px 0 4px; }
+.over-card h2 { margin: 0 0 12px; font-size: 24px; }
+.over-card .scores { width: 100%; background: #1b261d; border-radius: 12px; overflow: hidden; border-collapse: separate; border-spacing: 0; }
+.over-card .scores th { color: var(--muted); font-weight: 600; font-size: 12px; padding: 10px 8px; border-bottom: 1px solid #34453a; }
+.over-card .scores td { padding: 10px 8px; border-bottom: 1px solid #2a382e; }
+.over-card .scores tr:last-child td { border-bottom: none; }
+.over-card .scores tr.winner td { color: var(--accent); font-weight: 700; }
