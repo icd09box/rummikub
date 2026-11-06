@@ -216,15 +216,19 @@ function attachDrag(el, id) {
     if (e.button !== undefined && e.button !== 0) return;
     const srcSet = el.closest('.set');
     const fromSet = srcSet ? Number(srcSet.dataset.idx) : -1;
-    drag = { id, startX: e.clientX, startY: e.clientY, moved: false, ghost: null, pointerId: e.pointerId, source: el, fromSet };
+    const inRack = !!el.closest('#rack');
+    drag = { id, startX: e.clientX, startY: e.clientY, moved: false, ghost: null, pointerId: e.pointerId, source: el, fromSet, inRack, scrolling: false, scrollStart: inRack ? $('rack').scrollLeft : 0 };
     try { el.setPointerCapture && el.setPointerCapture(e.pointerId); } catch {}
   });
 }
 document.addEventListener('pointermove', e => {
   if (!drag) return;
   const dx = e.clientX - drag.startX, dy = e.clientY - drag.startY;
+  // 내 타일 칸에서 옆으로 미는 건 스크롤, 위로 들어 올리는 게 꺼내기
+  if (drag.scrolling) { $('rack').scrollLeft = drag.scrollStart - dx; return; }
   if (!drag.moved) {
     if (Math.hypot(dx, dy) < 6) return;
+    if (drag.inRack && Math.abs(dx) > Math.abs(dy) * 1.2) { drag.scrolling = true; $('rack').scrollLeft = drag.scrollStart - dx; return; }
     drag.moved = true;
     const ids = selected.has(drag.id) ? [...selected] : [drag.id];
     drag.ids = ids;
@@ -244,6 +248,7 @@ document.addEventListener('pointerup', e => {
   const d = drag; drag = null;
   document.body.classList.remove('is-dragging');
   document.querySelectorAll('.drop-hover').forEach(x => x.classList.remove('drop-hover'));
+  if (d.scrolling) { if (Math.abs(e.clientX - d.startX) > 6) suppressNextClick(); return; }
   if (!d.moved) return; // 클릭은 click 핸들러가 처리
   e.preventDefault();
   suppressNextClick();
