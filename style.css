@@ -50,6 +50,7 @@ button.primary { background: var(--accent); color: var(--accent-text); border-co
 .hint { padding: 4px 14px; min-height: 22px; font-size: 13px; color: var(--muted); background: var(--bar); }
 .hint.bad { color: var(--danger); }
 .hint.good { color: var(--accent); }
+.hint:empty::before { content: "\00a0"; }   /* 내 차례가 아닐 때 안내가 비어도 한 줄 높이를 지켜 아래 칸이 들썩이지 않게 */
 .rack { display: flex; flex-wrap: wrap; gap: 4px; padding: 12px 14px; background: var(--rackbg); min-height: 84px; }
 
 .tile { width: 40px; height: 56px; border-radius: 6px; background: var(--tile); border-bottom: 3px solid var(--tile-edge); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 20px; cursor: pointer; user-select: none; box-shadow: 0 1px 2px rgba(0,0,0,.4); transition: transform .08s; }
@@ -129,7 +130,6 @@ button.primary { background: var(--accent); color: var(--accent-text); border-co
   .reactions { top: 36px; }
 }
   .side { padding: 3px 10px; }
-  .hint { font-size: 11px; min-height: 0; padding: 1px 10px; }
   .tile { width: 34px; height: 46px; font-size: 16px; }
 }
 
