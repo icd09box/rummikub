@@ -217,4 +217,3 @@ button.on { background: var(--accent); color: var(--accent-text); border-color: 
 .rack.collapsed { display: none; }
 .rack-bar.collapsed { padding: 10px 12px; background: #3a2d1e; min-height: 44px; }
 .rack-bar.collapsed.drop-hover { box-shadow: inset 0 0 0 3px var(--accent); }
-@media (min-width: 721px) { .rack-bar { display: none; } .rack.collapsed { display: flex; } }
