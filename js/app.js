@@ -7,7 +7,7 @@ import { HostSession, ClientSession, makeToken, loadHostSave, clearHostSave } fr
 
 const $ = id => document.getElementById(id);
 const screens = ['setup', 'lobby', 'handoff', 'game', 'over'];
-function show(name) { for (const s of screens) $(s).classList.toggle('hidden', s !== name); }
+function show(name) { for (const s of screens) $(s).classList.toggle('hidden', s !== name); document.body.classList.toggle('in-game', name === 'game'); }
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
 let mode = 'local';        // local | host | client
@@ -217,6 +217,7 @@ function attachDrag(el, id) {
     const srcSet = el.closest('.set');
     const fromSet = srcSet ? Number(srcSet.dataset.idx) : -1;
     drag = { id, startX: e.clientX, startY: e.clientY, moved: false, ghost: null, pointerId: e.pointerId, source: el, fromSet };
+    try { el.setPointerCapture && el.setPointerCapture(e.pointerId); } catch {}
   });
 }
 document.addEventListener('pointermove', e => {
@@ -280,6 +281,8 @@ function smartTarget(ids, x, y, excludeIdx = -1) {
   if (best === null || bestDist > 160) return { kind: 'new' };
   return { kind: 'set', index: best };
 }
+// 드래그 중엔 터치 스크롤·당겨서 새로고침을 원천 차단(passive:false 필수)
+document.addEventListener('touchmove', e => { if (drag) e.preventDefault(); }, { passive: false });
 document.addEventListener('pointercancel', () => { if (drag) { drag.ghost && drag.ghost.remove(); drag.source.classList.remove('dragging'); drag = null; document.body.classList.remove('is-dragging'); } });
 
 let suppressClick = false;
