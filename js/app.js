@@ -23,6 +23,7 @@ let sortMode = 'num';        // num | color | free(내 맘대로)
 let freeLayout = { top: [], bottom: [] };   // 내 맘대로 정리 배치(타일 id)
 let pendingPlace = null;    // 바닥→내 타일로 가져올 때 놓을 자리
 let rackZoned = false;      // 내 타일 칸이 위(묶음)·아래 두 구역으로 나뉘어 있는지
+let lastTap = {};           // 두 번 클릭 판정용 { id, at }
 let countdownTimer = null;
 let suggestIds = new Set();  // 추천으로 깜빡일 타일
 let lastMoved = new Set();   // 직전 조작으로 옮긴 타일 id (놓은 곳 강조용)
@@ -30,7 +31,7 @@ let lastMovedAt = 0;
 let tidy = false;            // 바닥 묶음을 정렬해서 보기(내 화면만)
 let wasMyTurn = false;       // 내 차례 알림용
 let shownTurnNo = 0;         // 상대 수 애니메이션을 한 번만
-let prefs = { symbols: false, alert: true, pinpoint: true, rows: 'one', local: false, light: false };
+let prefs = { symbols: false, alert: true, pinpoint: true, rows: 'one', local: false, light: false, zones: true };
 let lastOneWarned = new Set();   // 마지막 한 장 경고를 사람마다 한 번만
 let warned10 = false;             // 10초 경고음 한 번만
 let rackCollapsed = false;
@@ -471,8 +472,9 @@ function render(cpuView = false) {
       const names = lt.placed.map(tileName).join(', ');
       banner.innerHTML = `<b>${esc(lt.name)}</b>이(가) 방금 냄: <span class="lt-tiles">${esc(names)}</span> (${lt.placed.length}장)${lt.meldValue != null ? ` · 처음 30점 내기 ${lt.meldValue}점` : ''}${lt.rearranged ? ' · 바닥 묶음도 다시 짬' : ''}`;
     } else banner.innerHTML = `<b>${esc(lt.name)}</b>이(가) ${lt.drew ? '못 내서 한 장 뽑음' : '넘김'}`;
-    banner.classList.remove('hidden');
-  } else banner.classList.add('hidden');
+  } else banner.textContent = '다른 사람이 낸 수가 여기 보여요';   // 줄이 생겼다 없어지면 바닥·버튼 위치가 흔들려서 늘 켜 둔다
+  banner.classList.toggle('empty', !(lt && lt.seat !== v.seat));
+  banner.classList.remove('hidden');
   const table = $('table'); table.innerHTML = '';
   displayOrder(v.table).forEach(idx => {
     const set = v.table[idx];
@@ -507,14 +509,24 @@ function render(cpuView = false) {
   $('rowsBtn').classList.toggle('on', prefs.rows === 'two');
   $('emojiBtn').classList.toggle('hidden', mode === 'local');
   if (v.reaction && v.reaction.at !== lastReactionAt) { lastReactionAt = v.reaction.at; showReaction(v.reaction); }
-  // 내 맘대로 배치는 정렬을 바꿔도 남겨 둔다. 숫자순·색깔순에선 위 칸 묶음은 그대로, 아래 칸만 정렬
+  // 묶음 칸(위)은 기본으로 켜 둔다. 숫자순·색깔순에선 위 칸 묶음은 그대로, 아래 칸만 정렬
   const o = cpuView ? null : freeOrder(v.rack);
-  const free = !cpuView && (sortMode === 'free' || o.top.length > 0);
+  const free = !cpuView && (prefs.zones || sortMode === 'free');
   rackZoned = free;
   rack.classList.toggle('free', free);
   const mkTile = t => {
     const el = tileEl(t, { hidden: cpuView, draggable: myTurn || free });   // 두 구역일 땐 남의 차례에도 정리 가능
-    if (myTurn) el.addEventListener('click', () => { toggle(t.id); render(); });
+    // dblclick은 첫 클릭의 render()로 타일이 새로 그려지면 안 와서, 같은 타일 연속 클릭으로 판단
+    if (myTurn || free) el.addEventListener('click', () => {
+      const now = Date.now();
+      if (free && lastTap.id === t.id && now - lastTap.at < 400) {
+        lastTap = {}; selected.delete(t.id);
+        applyPlacement([t.id], { zone: freeLayout.top.includes(t.id) ? 'bottom' : 'top', index: Infinity });
+        return render();
+      }
+      lastTap = { id: t.id, at: now };
+      if (myTurn) { toggle(t.id); render(); }
+    });
     return el;
   };
   if (free) {
@@ -546,7 +558,7 @@ function render(cpuView = false) {
   if (cpuView) $('status').textContent = '';
   else if (v.watching) $('status').textContent = '구경 중';
   else if (myTurn) $('status').textContent = '내 차례';
-  else $('status').textContent = `${v.currentName}의 차례예요. 기다려 주세요`;
+  else { const cur = v.players[v.turn]; $('status').textContent = cur && cur.type === 'cpu' ? `${cur.name.replace(/ \(어려움\)$/, '')} 생각 중…` : `${v.currentName} 차례`; }   // 좁은 상단바에 맞게 짧게
 
   renderSelectionBar(myTurn);
   const hint = $('hint');
@@ -571,6 +583,8 @@ function render(cpuView = false) {
   $('suggestBtn').disabled = $('autoPlayBtn').disabled = !myTurn;
   $('sortBtn').disabled = cpuView; $('sortBtn').textContent = { num: '숫자순', color: '색깔순', free: '내 맘대로' }[sortMode];
   $('rowsBtn').disabled = free;
+  $('zonesBtn').textContent = free ? '묶음 칸 끄기' : '묶음 칸 켜기';
+  $('zonesBtn').classList.toggle('hidden', cpuView);
   if (!myTurn) selected.clear();
   startCountdown(v.remaining != null ? Date.now() + v.remaining : (v.deadline || null));
 }
@@ -717,6 +731,11 @@ $('undoBtn').addEventListener('click', () => { selected.clear(); dispatch({ type
 $('tidyBtn').addEventListener('click', () => { tidy = !tidy; render(); });
 $('rowsBtn').addEventListener('click', () => { prefs.rows = prefs.rows === 'two' ? 'one' : 'two'; savePrefs(); render(); });
 $('rackToggle').addEventListener('click', () => { rackCollapsed = !rackCollapsed; render(); });
+$('zonesBtn').addEventListener('click', () => {
+  prefs.zones = !(prefs.zones || sortMode === 'free');
+  if (!prefs.zones && sortMode === 'free') { sortMode = 'num'; saveLayout(); }
+  savePrefs(); render();
+});
 
 // ========== 이모지 반응(온라인) ==========
 $('emojiBar').innerHTML = EMOJIS.map(e => `<button data-emoji="${e}">${e}</button>`).join('');
@@ -735,6 +754,7 @@ function showReaction(r) {
 }
 $('sortBtn').addEventListener('click', () => {
   sortMode = { num: 'color', color: 'free', free: 'num' }[sortMode];
+  if (sortMode === 'free' && !prefs.zones) { prefs.zones = true; savePrefs(); }
   saveLayout();
   if (sortMode === 'free') { flash('내 맘대로: 타일을 끌어서 순서를 바꾸고, 다 만든 묶음은 위 칸에 올려 두세요.'); $('hint').className = 'hint good'; }
   render();
