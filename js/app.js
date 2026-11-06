@@ -8,6 +8,9 @@ import { HostSession, ClientSession, makeToken, loadHostSave, clearHostSave } fr
 const $ = id => document.getElementById(id);
 const screens = ['setup', 'lobby', 'handoff', 'game', 'over'];
 function show(name) { for (const s of screens) $(s).classList.toggle('hidden', s !== name); document.body.classList.toggle('in-game', name === 'game'); }
+// 실제로 보이는 높이. 100dvh는 안드로이드 하단 내비게이션 바까지 포함하는 경우가 있다
+function setAppH() { document.documentElement.style.setProperty('--app-h', Math.round(window.visualViewport ? visualViewport.height : innerHeight) + 'px'); }
+setAppH(); addEventListener('resize', setAppH); window.visualViewport && visualViewport.addEventListener('resize', setAppH);
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
 let mode = 'local';        // local | host | client
@@ -19,6 +22,7 @@ let lastHumanShown = -1;
 let sortMode = 'num';        // num | color | free(내 맘대로)
 let freeLayout = { top: [], bottom: [] };   // 내 맘대로 정리 배치(타일 id)
 let pendingPlace = null;    // 바닥→내 타일로 가져올 때 놓을 자리
+let rackZoned = false;      // 내 타일 칸이 위(묶음)·아래 두 구역으로 나뉘어 있는지
 let countdownTimer = null;
 let suggestIds = new Set();  // 추천으로 깜빡일 타일
 let lastMoved = new Set();   // 직전 조작으로 옮긴 타일 id (놓은 곳 강조용)
@@ -283,7 +287,7 @@ document.addEventListener('pointermove', e => {
   if (drag.scrolling) { $('rack').scrollLeft = drag.scrollStart - dx; return; }
   if (!drag.moved) {
     if (Math.hypot(dx, dy) < 6) return;
-    if (drag.inRack && sortMode !== 'free' && Math.abs(dx) > Math.abs(dy) * 1.2) { drag.scrolling = true; $('rack').scrollLeft = drag.scrollStart - dx; return; }
+    if (drag.inRack && !rackZoned && Math.abs(dx) > Math.abs(dy) * 1.2) { drag.scrolling = true; $('rack').scrollLeft = drag.scrollStart - dx; return; }
     drag.moved = true;
     const ids = selected.has(drag.id) ? [...selected] : [drag.id];
     drag.ids = ids;
@@ -311,7 +315,7 @@ document.addEventListener('pointerup', e => {
   const target = dropTargetAt(e.clientX, e.clientY);
   if (!target) return render();
   if (target.kind === 'set' && target.index === d.fromSet) return render();
-  if (target.kind === 'rack' && sortMode === 'free') {
+  if (target.kind === 'rack' && rackZoned) {
     const place = rackPlacement(e.clientX, e.clientY, d.ids);
     if (d.inRack) { applyPlacement(d.ids, place); selected.clear(); return render(); }
     const mine = d.ids.filter(id => new Set(view.newIds).has(id));
@@ -381,7 +385,7 @@ function highlightDropTarget(x, y) {
   else if (t.kind === 'new') $('table').classList.add('drop-hover');
   else {
     $('rack').classList.add('drop-hover'); $('rackBar').classList.add('drop-hover');
-    if (sortMode === 'free') { const z = document.elementFromPoint(x, y); const zone = z && z.closest('.zone'); zone && zone.classList.add('drop-hover'); }
+    if (rackZoned) { const z = document.elementFromPoint(x, y); const zone = z && z.closest('.zone'); zone && zone.classList.add('drop-hover'); }
   }
 }
 function setEl(idx) { return $('table').querySelector(`.set[data-idx="${idx}"]`); }
@@ -415,7 +419,7 @@ function freeOrder(rack) {
     const ids = missing.filter(id => pendingPlace.ids.includes(id));
     applyPlacement(ids, pendingPlace);
     missing.filter(id => !ids.includes(id)).forEach(id => freeLayout.bottom.push(id));
-  } else freeLayout.bottom.push(...missing);
+  } else freeLayout.bottom.push(...sortRack(rack.filter(t => missing.includes(t.id))).map(t => t.id));
   pendingPlace = null;
   saveLayout();
   return { top: freeLayout.top.map(id => byId.get(id)), bottom: freeLayout.bottom.map(id => byId.get(id)) };
@@ -503,15 +507,18 @@ function render(cpuView = false) {
   $('rowsBtn').classList.toggle('on', prefs.rows === 'two');
   $('emojiBtn').classList.toggle('hidden', mode === 'local');
   if (v.reaction && v.reaction.at !== lastReactionAt) { lastReactionAt = v.reaction.at; showReaction(v.reaction); }
-  const free = sortMode === 'free' && !cpuView;
+  // 내 맘대로 배치는 정렬을 바꿔도 남겨 둔다. 숫자순·색깔순에선 위 칸 묶음은 그대로, 아래 칸만 정렬
+  const o = cpuView ? null : freeOrder(v.rack);
+  const free = !cpuView && (sortMode === 'free' || o.top.length > 0);
+  rackZoned = free;
   rack.classList.toggle('free', free);
   const mkTile = t => {
-    const el = tileEl(t, { hidden: cpuView, draggable: myTurn || free });   // 내 맘대로 모드에선 남의 차례에도 정리 가능
+    const el = tileEl(t, { hidden: cpuView, draggable: myTurn || free });   // 두 구역일 땐 남의 차례에도 정리 가능
     if (myTurn) el.addEventListener('click', () => { toggle(t.id); render(); });
     return el;
   };
   if (free) {
-    const o = freeOrder(v.rack);
+    if (sortMode !== 'free') o.bottom = sortRack(o.bottom);
     for (const zone of ['top', 'bottom']) {
       const z = document.createElement('div'); z.className = 'zone ' + zone; z.dataset.zone = zone;
       o[zone].forEach(t => z.appendChild(mkTile(t)));
@@ -728,8 +735,8 @@ function showReaction(r) {
 }
 $('sortBtn').addEventListener('click', () => {
   sortMode = { num: 'color', color: 'free', free: 'num' }[sortMode];
-  if (sortMode !== 'free') { try { sessionStorage.removeItem(layoutKey()); } catch {} }
-  if (sortMode === 'free') { freeLayout = { top: [], bottom: [] }; freeLayout.bottom = sortRack(view.rack).map(t => t.id); flash('내 맘대로: 타일을 끌어서 순서를 바꾸고, 다 만든 묶음은 위 칸에 올려 두세요.'); $('hint').className = 'hint good'; }
+  saveLayout();
+  if (sortMode === 'free') { flash('내 맘대로: 타일을 끌어서 순서를 바꾸고, 다 만든 묶음은 위 칸에 올려 두세요.'); $('hint').className = 'hint good'; }
   render();
 });
 $('drawBtn').addEventListener('click', () => { selected.clear(); dispatch({ type: 'draw' }); });

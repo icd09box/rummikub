@@ -74,7 +74,7 @@ button.primary { background: var(--accent); color: var(--accent-text); border-co
   .topbar > div { display: flex; align-items: center; gap: 4px; min-width: 0; flex: 1; justify-content: flex-end; }
   .status { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   .net, .timer { white-space: nowrap; }
-  #game { flex-direction: column; height: calc(100vh - 40px); height: calc(100dvh - 40px); }
+  #game { flex-direction: column; min-height: 0; }
   .screen:not(#game) { align-items: flex-start; padding-top: 16px; }
   /* 플레이어 패널 → 가로 칩 한 줄 */
   .side { width: auto; padding: 6px 10px; flex-direction: row; gap: 6px; overflow-x: auto; flex-shrink: 0; }
@@ -108,7 +108,7 @@ button.primary { background: var(--accent); color: var(--accent-text); border-co
 /* 가로 모드 폰: 버튼·플레이어를 오른쪽 세로 기둥으로 보내 바닥·타일에 세로 공간을 몰아준다 */
 @media (max-height: 520px) and (orientation: landscape) and (max-width: 1024px) {
   .topbar { padding: 2px 10px; } .topbar h1 { display: none; }
-  #game { display: grid; grid-template-columns: 1fr 132px; grid-template-rows: auto 1fr auto auto auto auto; height: calc(100dvh - 30px); }
+  #game { display: grid; grid-template-columns: 1fr 132px; grid-template-rows: auto 1fr auto auto auto auto; min-height: 0; }
   .side, .board { display: contents; }
   #lastTurn { grid-column: 1; grid-row: 1; }
   #table { grid-column: 1; grid-row: 2; padding: 8px; gap: 8px; }
@@ -249,8 +249,11 @@ button.on { background: var(--accent); color: var(--accent-text); border-color: 
 .tile, .set, .table, .rack, .rack-bar { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 body.is-dragging { touch-action: none; overflow: hidden; overscroll-behavior: none; }
 body.is-dragging .table, body.is-dragging .rack { overflow: hidden; }
+/* 게임 중엔 페이지 자체가 안 움직이게. 높이는 JS가 잰 실제 보이는 높이(--app-h): 100dvh는 안드로이드 하단 내비게이션 바 밑까지 잡혀 타일 칸이 가려진다 */
+@media (max-width: 720px), (max-height: 520px) and (orientation: landscape) and (max-width: 1024px) {
+  body.in-game { position: fixed; top: 0; left: 0; right: 0; height: var(--app-h, 100dvh); min-height: 0; overflow: hidden; }
+}
 @media (max-width: 720px) {
-  body.in-game { position: fixed; inset: 0; overflow: hidden; }   /* 게임 중엔 페이지 자체가 안 움직이게 */
   #game { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
 }
 
