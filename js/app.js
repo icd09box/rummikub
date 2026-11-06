@@ -626,9 +626,13 @@ function renderSelectionBar(myTurn) {
   const byId = new Map([...view.table.flat(), ...view.rack].map(t => [t.id, t]));
   const ids = [...selected];
   const names = ids.slice(0, 3).map(id => tileName(byId.get(id))).join(', ') + (ids.length > 3 ? ` 외 ${ids.length - 3}장` : '');
+  const onTable = new Set(view.table.flat().map(t => t.id));
+  const fromTable = ids.some(id => onTable.has(id));
   bar.innerHTML = `<span class="sel-label">${esc(names)} 선택됨 — 끌어서 옮기세요. 더 누르면 같이 옮겨요.</span>
+    ${fromTable ? '<button data-act="split">떼어서 따로 두기</button>' : ''}
     <button data-act="cancel" class="ghost">선택 해제</button>`;
   bar.classList.remove('hidden');
+  if (fromTable) bar.querySelector('[data-act="split"]').addEventListener('click', () => { const move = [...selected]; selected.clear(); dispatch({ type: 'move', ids: move, to: { kind: 'new' } }); });
   bar.querySelector('[data-act="cancel"]').addEventListener('click', () => { selected.clear(); render(); });
 }
 const COLOR_KO = { red: '빨강', blue: '파랑', black: '검정', orange: '주황' };
@@ -656,7 +660,12 @@ function flash(msg) { const h = $('hint'); h.textContent = msg; h.className = 'h
 // ========== 조작 ==========
 function onSetClick(e, idx) {
   const tileNode = e.target.closest('.tile');
-  if (tileNode && (selected.size === 0 || selected.has(Number(tileNode.dataset.id)))) { toggle(Number(tileNode.dataset.id)); return render(); }
+  if (tileNode) {
+    // 바닥 타일을 이미 골라 둔 상태면 다른 바닥 타일도 같이 고르기(여러 묶음에서 한꺼번에 떼기). 내 타일만 골랐으면 그 묶음에 붙이기
+    const id = Number(tileNode.dataset.id);
+    const onTable = new Set(view.table.flat().map(t => t.id));
+    if (selected.size === 0 || selected.has(id) || [...selected].some(s => onTable.has(s))) { toggle(id); return render(); }
+  }
   if (selected.size === 0) return;
   dispatch({ type: 'move', ids: [...selected], to: { kind: 'set', index: idx } }); selected.clear();
 }
