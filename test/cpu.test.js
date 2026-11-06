@@ -43,3 +43,18 @@ test('어려운 컴퓨터: 긴 연속 묶음을 쪼개 손패를 끼우고, 4장
   assert.equal(planCpuTurn({ table: [grp], rack: [t('blue', 8, 3), t('blue', 9, 4)], hasMelded: true }).action, 'draw');
   assert.equal(planCpuTurn({ table: [grp], rack: [t('blue', 8, 3), t('blue', 9, 4)], hasMelded: true, level: 'hard' }).action, 'play');
 });
+
+test('어려운 컴퓨터 조커: 다 낼 수 있을 때만 조커를 쓴다', async () => {
+  const { finishWithJoker } = await import('../js/cpu.js');
+  const t = (color, num, id) => ({ id, color, num, joker: false });
+  const J = { id: 99, color: null, num: 0, joker: true };
+  const table = [[t('red', 5, 1), t('red', 6, 2), t('red', 7, 3)]];
+  // 조커 + 파랑 3·4 → 새 묶음으로 다 냄
+  const a = finishWithJoker(table, [J, t('blue', 3, 4), t('blue', 4, 5)]);
+  assert.ok(a && a.rack.length === 0 && a.table.length === 2);
+  // 조커만 남음 → 바닥에 붙여 끝
+  const b = finishWithJoker(table, [J]);
+  assert.ok(b && b.rack.length === 0 && b.table[0].length === 4);
+  // 손패가 많으면 조커 아낌
+  assert.equal(finishWithJoker(table, [J, t('blue', 3, 4), t('black', 9, 6), t('orange', 11, 7)]), null);
+});

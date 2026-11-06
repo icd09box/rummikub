@@ -26,12 +26,28 @@ let lastMovedAt = 0;
 let tidy = false;            // 바닥 묶음을 정렬해서 보기(내 화면만)
 let wasMyTurn = false;       // 내 차례 알림용
 let shownTurnNo = 0;         // 상대 수 애니메이션을 한 번만
-let prefs = { symbols: false, alert: true, pinpoint: true, rows: 'one', local: false };
+let prefs = { symbols: false, alert: true, pinpoint: true, rows: 'one', local: false, light: false };
+let lastOneWarned = new Set();   // 마지막 한 장 경고를 사람마다 한 번만
+let warned10 = false;             // 10초 경고음 한 번만
 let rackCollapsed = false;
 let lastReactionAt = 0;
 try { prefs = { ...prefs, ...JSON.parse(localStorage.getItem('rummi-prefs') || '{}') }; } catch {}
 function savePrefs() { try { localStorage.setItem('rummi-prefs', JSON.stringify(prefs)); } catch {} }
 document.body.classList.toggle('symbols', prefs.symbols);
+document.body.classList.toggle('light', prefs.light);
+
+// ===== 상단 알림 띠 =====
+let noticeTimer = null;
+function showNotice(text, btn = null, onBtn = null, autoHideMs = 0) {
+  $('noticeText').textContent = text;
+  $('noticeBtn').classList.toggle('hidden', !btn); $('noticeBtn').textContent = btn || '';
+  $('noticeBtn').onclick = () => { hideNotice(); onBtn && onBtn(); };
+  $('notice').classList.remove('hidden');
+  clearTimeout(noticeTimer);
+  if (autoHideMs) noticeTimer = setTimeout(hideNotice, autoHideMs);
+}
+function hideNotice() { $('notice').classList.add('hidden'); clearTimeout(noticeTimer); }
+$('noticeClose').addEventListener('click', hideNotice);
 
 // ========== 설정 화면 ==========
 document.querySelectorAll('.tab').forEach(btn => btn.addEventListener('click', () => {
@@ -68,6 +84,10 @@ function startHost(name, restore = null) {
   try {
     session = new HostSession({
       name, restore,
+      onIdle: () => {
+        showNotice('30분 동안 아무 움직임이 없어요. 2분 뒤에 방을 닫아요.', '계속하기', () => session && session.touch());
+        setTimeout(() => { if (session && Date.now() - session.lastActive >= 30 * 60 * 1000) { session.destroy(); session = null; view = null; hideNotice(); show('setup'); checkResume(); } }, 2 * 60 * 1000);
+      },
       onReady: code => {
         $('lobbyCode').textContent = code;
         const link = `${location.origin}${location.pathname}?room=${code}`;
@@ -81,6 +101,11 @@ function startHost(name, restore = null) {
   } catch (e) { alert(e.message); show('setup'); return; }
   if (!restore) renderLobby(session.host.lobbyState());
 }
+// 다른 탭의 '이어하기' 물음에 답하기
+if ('BroadcastChannel' in window) {
+  const hostCh = new BroadcastChannel('rummi-host');
+  hostCh.onmessage = e => { if (e.data && e.data.t === 'ask' && session && mode === 'host' && session.code === e.data.code) hostCh.postMessage({ t: 'have', code: session.code }); };
+}
 function renderQr(link) {
   const box = $('qr'); box.innerHTML = '';
   if (typeof QRCode === 'undefined') return;
@@ -93,7 +118,15 @@ function checkResume() {
   if (!save) return;
   const st = save.state;
   $('resumeInfo').textContent = `방 ${save.code} · ${st.seats.map(x => x.name).join(', ')} · ${st.game ? st.game.round || 1 : 1}판째`;
-  $('resumeBtn').onclick = () => startHost(save.name || '방장', save);
+  $('resumeBtn').onclick = () => {
+    // 다른 탭에서 이미 같은 방을 열어 두었는지 먼저 확인
+    if ('BroadcastChannel' in window) {
+      const ch = new BroadcastChannel('rummi-host'); let taken = false;
+      ch.onmessage = e => { if (e.data && e.data.t === 'have' && e.data.code === save.code) taken = true; };
+      ch.postMessage({ t: 'ask', code: save.code });
+      setTimeout(() => { ch.close(); if (taken) showNotice('이 방이 다른 탭에서 이미 열려 있어요. 그 탭에서 계속하세요.', null, null, 6000); else startHost(save.name || '방장', save); }, 300);
+    } else startHost(save.name || '방장', save);
+  };
   $('resumeDrop').onclick = () => { clearHostSave(); checkResume(); };
 }
 
@@ -112,13 +145,14 @@ $('joinBtn').addEventListener('click', () => {
   show('lobby');
   session = new ClientSession({
     code, name, token,
+    onVersion: () => showNotice('방장과 앱 버전이 달라요. 새로고침하면 맞춰져요.', '새로고침', () => location.reload()),
     onJoined: j => { $('lobbyStatus').textContent = j.watching ? '게임이 진행 중이라 구경하다가 다음 판부터 같이 해요.' : '들어왔어요. 방장이 시작하길 기다리는 중…'; },
     onLobby: renderLobby,
     onState: onView,
     onError: msg => { $('lobbyStatus').textContent = msg; flash(msg); },
   });
 });
-$('leaveBtn').addEventListener('click', () => { session && session.destroy(); session = null; show('setup'); });
+$('leaveBtn').addEventListener('click', () => { forgetJoin(); session && session.destroy(); session = null; show('setup'); });
 $('copyLinkBtn').addEventListener('click', async () => {
   const link = $('lobbyLink').textContent || `${location.origin}${location.pathname}?room=${$('lobbyCode').textContent}`;
   try { await navigator.clipboard.writeText(link); $('copyLinkBtn').textContent = '복사됨!'; } catch { $('copyLinkBtn').textContent = '길게 눌러 복사'; }
@@ -136,9 +170,10 @@ if (navigator.share) {
 const roomParam = new URLSearchParams(location.search).get('room');
 if (roomParam) { $('joinCode').value = roomParam.toUpperCase(); document.querySelector('[data-pane="paneJoin"]').click(); }
 else {
-  // 참가자가 새로고침한 경우: 직전 방 코드·이름을 미리 채워 바로 다시 들어갈 수 있게
-  try { const j = JSON.parse(sessionStorage.getItem('rummi-last-join') || 'null'); if (j) { $('joinCode').value = j.code; $('joinName').value = j.name; document.querySelector('[data-pane="paneJoin"]').click(); } } catch {}
+  // 참가자가 새로고침한 경우: 직전 방으로 자동 재입장(나가기를 누른 경우엔 기록이 지워져 있음)
+  try { const j = JSON.parse(sessionStorage.getItem('rummi-last-join') || 'null'); if (j) { $('joinCode').value = j.code; $('joinName').value = j.name; document.querySelector('[data-pane="paneJoin"]').click(); setTimeout(() => $('joinBtn').click(), 50); } } catch {}
 }
+function forgetJoin() { try { sessionStorage.removeItem('rummi-last-join'); } catch {} }
 // 게임 중 탭을 닫거나 새로고침하면 확인
 window.addEventListener('beforeunload', e => { if (view && view.phase === 'playing') { e.preventDefault(); e.returnValue = ''; } });
 
@@ -441,7 +476,9 @@ function render(cpuView = false) {
     const el = document.createElement('div');
     el.className = 'set' + (a.ok ? '' : ' invalid');
     el.dataset.idx = idx;
-    if (!v.snapshotSetKeys.includes(set.map(t => t.id).sort().join(','))) el.classList.add('changed');
+    const setKey = set.map(t => t.id).sort().join(',');
+    if (!v.snapshotSetKeys.includes(setKey)) el.classList.add('changed');
+    if (v.lastTurn && v.lastTurn.seat !== v.seat && (v.lastTurn.changedSets || []).includes(setKey)) el.classList.add('rearranged');
     const fresh = Date.now() - lastMovedAt < 1500;
     if (fresh && set.some(t => lastMoved.has(t.id))) el.classList.add('just-dropped');
     const bad = new Set(!a.ok && prefs.pinpoint ? offendingTiles(set) : []);
@@ -483,11 +520,19 @@ function render(cpuView = false) {
   } else for (const t of sortRack(v.rack)) rack.appendChild(mkTile(t));
 
   $('players').innerHTML = v.players.map((x, i) => `
-    <div class="p ${i === v.turn ? 'active' : ''}">
+    <div class="p ${i === v.turn ? 'active' : ''} ${x.count === 1 && v.phase === 'playing' ? 'last-one' : ''}">
       <span>${esc(x.name)}${x.type === 'cpu' && !/컴퓨터/.test(x.name) ? ' <small>컴퓨터</small>' : ''}${i === v.seat ? ' <small>(나)</small>' : ''}${x.wins ? ` <span class="wins">🏆${x.wins}</span>` : ''}${x.connected ? '' : ' <small>끊김</small>'}</span>
       <span class="meta">${x.count}장${x.hasMelded ? '' : ' · 30점 전'}</span>
     </div>`).join('');
   $('poolCount').textContent = v.pool;
+  // 마지막 한 장 경고(사람마다 한 번)
+  v.players.forEach((x, i) => {
+    if (x.count === 1 && v.phase === 'playing' && !lastOneWarned.has(i) && i !== v.seat) {
+      lastOneWarned.add(i); showNotice(`⚠ ${x.name}이(가) 한 장 남았어요!`, null, null, 4000);
+      try { navigator.vibrate && navigator.vibrate([60, 40, 60, 40, 120]); } catch {}
+    }
+    if (x.count > 1) lastOneWarned.delete(i);
+  });
   $('log').innerHTML = v.log.slice().reverse().map(esc).join('<br>');
 
   const me = v.players[v.seat];
@@ -520,30 +565,35 @@ function render(cpuView = false) {
   $('sortBtn').disabled = cpuView; $('sortBtn').textContent = { num: '숫자순', color: '색깔순', free: '내 맘대로' }[sortMode];
   $('rowsBtn').disabled = free;
   if (!myTurn) selected.clear();
-  startCountdown(v.deadline);
+  startCountdown(v.remaining != null ? Date.now() + v.remaining : (v.deadline || null));
 }
 
 let audioCtx = null;
 document.addEventListener('pointerdown', () => { if (!audioCtx && prefs.alert && 'AudioContext' in window) { try { audioCtx = new AudioContext(); } catch {} } }, { once: false });
-function notifyTurn() {
-  if (!prefs.alert) return;
-  try { navigator.vibrate && navigator.vibrate([150, 80, 150]); } catch {}
-  if (!audioCtx) return;
+function beep(freq = 660, dur = 0.3, freq2 = null) {
+  if (!prefs.alert || !audioCtx) return;
   try {
     if (audioCtx.state === 'suspended') audioCtx.resume();
     const o = audioCtx.createOscillator(), g = audioCtx.createGain();
-    o.type = 'sine'; o.frequency.setValueAtTime(660, audioCtx.currentTime); o.frequency.setValueAtTime(880, audioCtx.currentTime + 0.12);
-    g.gain.setValueAtTime(0.0001, audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.25, audioCtx.currentTime + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.3);
-    o.connect(g).connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime + 0.32);
+    o.type = 'sine'; o.frequency.setValueAtTime(freq, audioCtx.currentTime); if (freq2) o.frequency.setValueAtTime(freq2, audioCtx.currentTime + 0.12);
+    g.gain.setValueAtTime(0.0001, audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.25, audioCtx.currentTime + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
+    o.connect(g).connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime + dur + 0.02);
   } catch {}
+}
+function notifyTurn() {
+  if (!prefs.alert) return;
+  try { navigator.vibrate && navigator.vibrate([150, 80, 150]); } catch {}
+  beep(660, 0.3, 880);
 }
 function startCountdown(deadline) {
   clearInterval(countdownTimer);
   const el = $('timer');
   if (!deadline) { el.textContent = ''; return; }
+  warned10 = false;
   const tick = () => {
     const s = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
     el.textContent = `⏱ ${s}초`; el.classList.toggle('urgent', s <= 10);
+    if (s <= 10 && !warned10 && view && view.seat === view.turn) { warned10 = true; beep(440, 0.25); try { navigator.vibrate && navigator.vibrate([80, 60, 80]); } catch {} }
     if (s <= 0) clearInterval(countdownTimer);
   };
   tick(); countdownTimer = setInterval(tick, 250);
@@ -703,6 +753,30 @@ function renderOver(v) {
   $('rematchWait').classList.toggle('hidden', canRematch);
   show('over');
 }
+$('shareResultBtn').addEventListener('click', async () => {
+  const v = view; if (!v) return;
+  const c = document.createElement('canvas'); const W = 720, rowH = 64; const H = 200 + rowH * v.players.length + 60; c.width = W; c.height = H;
+  const x = c.getContext('2d');
+  x.fillStyle = '#15201a'; x.fillRect(0, 0, W, H); x.fillStyle = '#8fdb24'; x.fillRect(0, 0, W, 14);
+  x.fillStyle = '#eef3ea'; x.font = 'bold 40px -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif'; x.textAlign = 'center';
+  x.fillText(`🏆 ${v.players[v.winner].name} 승리!`, W / 2, 90);
+  x.fillStyle = '#a9b8a5'; x.font = '22px -apple-system, "Apple SD Gothic Neo", sans-serif'; x.fillText(`루미큐브 · ${v.round || 1}판째 결과`, W / 2, 130);
+  const multi = (v.round || 1) > 1;
+  x.textAlign = 'left'; x.font = '24px -apple-system, "Apple SD Gothic Neo", sans-serif';
+  const cols = multi ? [40, 330, 470, 600] : [40, 400, 560];
+  x.fillStyle = '#a9b8a5'; ['플레이어', '남은 타일', '이번 판', '누적'].slice(0, cols.length).forEach((h, i) => x.fillText(h, cols[i], 180));
+  v.players.forEach((p, i) => {
+    const y = 180 + rowH * (i + 1);
+    x.fillStyle = i === v.winner ? '#8fdb24' : '#eef3ea'; x.font = (i === v.winner ? 'bold ' : '') + '26px -apple-system, "Apple SD Gothic Neo", sans-serif';
+    const vals = [p.name, `${p.count}장`, (p.score > 0 ? '+' : '') + p.score, multi ? (p.total > 0 ? '+' : '') + (p.total || 0) : null].filter(z => z !== null);
+    vals.forEach((t, k) => x.fillText(String(t), cols[k], y));
+  });
+  x.fillStyle = '#5a6a5c'; x.font = '18px -apple-system, sans-serif'; x.fillText('icd09box.github.io/rummikub', 40, H - 24);
+  const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+  const file = new File([blob], 'rummikub-result.png', { type: 'image/png' });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file], title: '루미큐브 결과' }); return; } catch {} }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'rummikub-result.png'; a.click();
+});
 $('rematchBtn').addEventListener('click', () => {
   selected.clear(); lastMoved.clear();
   if (mode === 'local') {
@@ -712,7 +786,7 @@ $('rematchBtn').addEventListener('click', () => {
   }
   if (mode === 'host') session.rematch();
 });
-$('againBtn').addEventListener('click', () => { session && session.destroy(); session = null; view = null; show('setup'); checkResume(); });
+$('againBtn').addEventListener('click', () => { forgetJoin(); session && session.destroy(); session = null; view = null; show('setup'); checkResume(); });
 
 // 도움말
 $('helpBtn').addEventListener('click', () => $('help').classList.remove('hidden'));
@@ -728,6 +802,8 @@ $('localToggle').addEventListener('change', () => {
   $('tabLocal').classList.toggle('hidden', !prefs.local);
   if (!prefs.local && $('tabLocal').classList.contains('active')) document.querySelector('[data-pane="paneHost"]').click();
 });
+$('lightToggle').checked = prefs.light;
+$('lightToggle').addEventListener('change', () => { prefs.light = $('lightToggle').checked; document.body.classList.toggle('light', prefs.light); document.querySelector('meta[name="theme-color"]').content = prefs.light ? '#d9e6d3' : '#15201a'; savePrefs(); });
 $('pinpointToggle').checked = prefs.pinpoint;
 $('pinpointToggle').addEventListener('change', () => { prefs.pinpoint = $('pinpointToggle').checked; savePrefs(); if (view && view.phase === 'playing') render(); });
 function maybeShowHelp() { let seen = false; try { seen = !!localStorage.getItem('rummi-help-seen'); } catch {} if (!seen) $('help').classList.remove('hidden'); }
@@ -736,4 +812,12 @@ renderSetupRows();
 show('setup');
 checkResume();
 // 홈 화면 추가(PWA): 같은 기기 모드는 오프라인도 됨
-if ('serviceWorker' in navigator && location.protocol.startsWith('http')) { navigator.serviceWorker.register('sw.js').catch(() => {}); }
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  navigator.serviceWorker.register('sw.js').then(reg => {
+    // 새 버전이 설치되면 알림(게임 중엔 방해 안 되게 띠만)
+    reg.addEventListener('updatefound', () => {
+      const w = reg.installing; if (!w) return;
+      w.addEventListener('statechange', () => { if (w.state === 'installed' && navigator.serviceWorker.controller) showNotice('새 버전이 있어요.', '새로고침', () => location.reload()); });
+    });
+  }).catch(() => {});
+}

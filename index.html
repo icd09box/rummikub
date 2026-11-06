@@ -12,6 +12,14 @@
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" href="icons/icon-192.png">
 <title>루미큐브</title>
+<meta name="description" content="2~4명이 각자 폰으로 같이 하는 루미큐브. 방 코드 하나로 바로 참가.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="루미큐브 같이 해요">
+<meta property="og:description" content="링크를 열면 바로 참가돼요. 설치 없이 폰 브라우저에서.">
+<meta property="og:image" content="https://icd09box.github.io/rummikub/icons/og.png">
+<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta property="og:url" content="https://icd09box.github.io/rummikub/">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -68,7 +76,7 @@
         <li><b>묶음은 두 가지</b>: ① 같은 숫자인데 색이 다른 타일 3~4장 (예: 빨강7·파랑7·검정7) ② 같은 색의 이어지는 숫자 3장 이상 (예: 파랑 4·5·6). 13 다음에 1은 안 돼요.</li>
         <li><b>처음 한 번은</b> 바닥 타일 없이 내 타일만으로 합계 30점 이상 되는 묶음을 내야 해요. 그 다음부터는 바닥 묶음에 끼워 넣거나 다시 짜도 돼요.</li>
         <li>차례를 끝낼 때 바닥의 모든 묶음이 규칙에 맞아야 하고, 내 타일을 최소 한 장은 냈어야 해요. 낼 게 없으면 <b>못 내면 뽑기</b>로 한 장 받고 넘겨요.</li>
-        <li><b>조커(☺)</b>는 아무 타일 대신 쓸 수 있어요. 끝날 때 손에 남으면 30점 손해.</li>
+        <li><b>조커(☺)</b>는 아무 타일 대신 쓸 수 있어요. 끝날 때 손에 남으면 30점 손해. 바닥에 있는 조커는 그 자리에 맞는 진짜 타일을 끼워 넣고 빼낸 뒤, 같은 차례 안에 다른 묶음에 써야 해요(내 타일로 가져올 순 없어요).</li>
         <li>타일을 끌어서 바닥에 놓으면 근처의 맞는 묶음에 <b>알아서 붙어요</b>. 빈 곳에 멀리 놓으면 새 묶음이 되고, 화면 아래로 끌어오면 내 타일로 돌아와요.</li>
         <li>나 말고 전부 컴퓨터인 판에서는 <b>추천</b>·<b>추천대로 내기</b> 버튼이 보여요. 사람이 한 명이라도 더 있으면 숨겨져요.</li>
         <li>온라인: 제한시간이 지나면 자동으로 한 장 뽑아요. 연결이 끊긴 사람 차례는 자동으로 넘어가고, 같은 이름으로 다시 들어오면 자리를 되찾아요. 방장이 실수로 새로고침해도 "온라인 방 만들기" 탭에서 같은 코드로 이어할 수 있어요.</li>
@@ -124,6 +132,7 @@
 </section>
 
 <!-- 게임 화면 -->
+<div id="notice" class="notice hidden"><span id="noticeText"></span><button id="noticeBtn" class="mini"></button><button id="noticeClose" class="mini ghost">✕</button></div>
 <section id="game" class="screen hidden">
   <div id="emojiBar" class="emoji-bar hidden"></div>
   <div id="reactions" class="reactions"></div>
@@ -166,6 +175,7 @@
     <table id="scoreTable" class="scores"></table>
     <p id="rematchWait" class="muted hidden">방장이 다음 판을 시작하길 기다리는 중…</p>
     <button id="rematchBtn" class="primary big">같은 사람들과 다음 판</button>
+    <button id="shareResultBtn" class="mini">결과 이미지 공유</button>
     <button id="againBtn" class="ghost-btn">그만하기</button>
   </div>
 </section>
@@ -191,6 +201,7 @@
       <label class="inline"><input type="checkbox" id="alertToggle" checked> 내 차례가 오면 소리·진동으로 알림 (온라인)</label>
       <label class="inline"><input type="checkbox" id="pinpointToggle" checked> 규칙에 안 맞는 묶음에서 문제 타일을 빨갛게 짚어 주기</label>
       <label class="inline"><input type="checkbox" id="localToggle"> 인터넷이 안 될 때 쓰는 "같은 기기" 모드 보이기</label>
+      <label class="inline"><input type="checkbox" id="lightToggle"> 밝은 화면 (라이트 테마)</label>
     </div>
     <button id="helpClose" class="primary">알겠어요</button>
   </div>

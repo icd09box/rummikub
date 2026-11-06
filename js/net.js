@@ -1,5 +1,7 @@
 // PeerJS 연결 층. 방장: 코드 발급 + 참가자 연결 수신. 참가자: 코드로 접속(끊기면 자동 재접속).
 import { GameHost, WATCHER } from './host.js';
+import { APP_VERSION } from './version.js';
+export const IDLE_MS = 30 * 60 * 1000;
 
 const PREFIX = 'rummikub-ko-';
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -38,7 +40,7 @@ export function clearHostSave(storage = globalThis.localStorage) { try { storage
 /** 방장: 호스트 자신도 자리 0을 차지한다. 연결은 자리 번호가 아니라 토큰으로 묶는다(자리가 당겨져도 안전). */
 export class HostSession {
   /** restore: loadHostSave()가 돌려준 저장본을 넣으면 같은 코드·같은 판으로 되살린다 */
-  constructor({ name, onLobby, onState, onError, onReady, onStatus, restore = null, storage = globalThis.localStorage }) {
+  constructor({ name, onLobby, onState, onError, onReady, onStatus, onIdle, restore = null, storage = globalThis.localStorage }) {
     this.code = restore ? restore.code : makeCode();
     this.restoring = !!restore;
     this.name = name;
@@ -50,7 +52,16 @@ export class HostSession {
     if (restore) { this.mySeat = 0; this.host.restore(restore.state); }
     else this.mySeat = this.host.addHuman(name, 'host');
     this.destroyed = false;
+    this.onIdle = onIdle || (() => {});
+    this.touch();
     this.openPeer(onReady);
+  }
+  /** 마지막 움직임 시각 갱신. 30분 조용하면 onIdle */
+  touch() {
+    this.lastActive = Date.now();
+    clearTimeout(this.idleTimer);
+    this.idleTimer = setTimeout(() => { if (!this.destroyed) this.onIdle(); }, IDLE_MS);
+    if (this.idleTimer && this.idleTimer.unref) this.idleTimer.unref();   // 테스트(node)에서 프로세스를 붙잡지 않게
   }
   save(state) {
     if (this.destroyed || !this.storage) return;
@@ -65,7 +76,11 @@ export class HostSession {
     this.peer.on('error', e => {
       if (e.type === 'unavailable-id') {
         // 복구 중 옛 코드가 아직 서버에 남아 있으면 잠시 뒤 다시 시도(코드를 바꾸면 참가자가 못 찾는다)
-        if (this.restoring) { this.peer.destroy(); setTimeout(() => !this.destroyed && this.openPeer(onReady), 2000); return; }
+        if (this.restoring) {
+          this.retries = (this.retries || 0) + 1;
+          if (this.retries > 3) { this.onError && this.onError('이 방 코드가 다른 탭이나 기기에서 이미 열려 있어요. 그쪽을 닫고 다시 시도하세요.'); return; }
+          this.peer.destroy(); setTimeout(() => !this.destroyed && this.openPeer(onReady), 2000); return;
+        }
         this.code = makeCode(); this.peer.destroy(); this.openPeer(onReady);
       }
       else this.onError && this.onError(e.type || String(e));
@@ -80,6 +95,7 @@ export class HostSession {
       if (!msg || typeof msg !== 'object') return;
       if (msg.t === 'join') {
         token = String(msg.token || '') || makeToken();
+        if (msg.v && msg.v !== APP_VERSION) conn.send({ t: 'version', host: APP_VERSION, mine: msg.v });
         const old = this.conns.get(token);
         if (old && old !== conn) { try { old.close(); } catch {} }
         const seat = this.host.addHuman(String(msg.name || '').slice(0, 10) || '손님', token);
@@ -88,6 +104,7 @@ export class HostSession {
         conn.send({ t: 'joined', seat: seat === WATCHER ? -1 : seat, token, watching: seat === WATCHER });
         if (this.host.game) this.host.afterChange(); else this.host.broadcastLobby();
       } else if (msg.t === 'action' && token) {
+        this.touch();
         const seat = this.seatOf(token);
         if (seat < 0) return;
         const r = this.host.applyAction(seat, msg.action);
@@ -113,13 +130,14 @@ export class HostSession {
   setTurnLimit(s) { this.host.setTurnLimit(s); }
   start() { return this.host.start(); }
   rematch() { return this.host.rematch(); }
-  dispatch(action) { const r = this.host.applyAction(this.mySeat, action); if (!r.ok) this.onError(r.error); return r; }
-  destroy() { this.destroyed = true; clearHostSave(this.storage); try { this.peer.destroy(); } catch {} }
+  dispatch(action) { this.touch(); const r = this.host.applyAction(this.mySeat, action); if (!r.ok) this.onError(r.error); return r; }
+  destroy() { this.destroyed = true; clearTimeout(this.idleTimer); clearHostSave(this.storage); try { this.peer.destroy(); } catch {} }
 }
 
 /** 참가자: 연결이 끊기면 같은 토큰으로 자동 재접속(자리 복구) */
 export class ClientSession {
-  constructor({ code, name, token, onLobby, onState, onError, onJoined, onStatus }) {
+  constructor({ code, name, token, onLobby, onState, onError, onJoined, onStatus, onVersion }) {
+    this.onVersion = onVersion;
     this.code = code.toUpperCase().trim();
     this.name = name;
     this.token = token || makeToken();
@@ -146,13 +164,14 @@ export class ClientSession {
     this.onStatus(this.attempt > 1 ? 'reconnecting' : 'connecting');
     const conn = this.peer.connect(PREFIX + this.code, { reliable: true });
     this.conn = conn;
-    conn.on('open', () => { conn.send({ t: 'join', name: this.name, token: this.token }); });
+    conn.on('open', () => { conn.send({ t: 'join', name: this.name, token: this.token, v: APP_VERSION }); });
     conn.on('data', msg => {
       if (!msg || typeof msg !== 'object') return;
       if (msg.t === 'joined') { this.mySeat = msg.seat; this.watching = !!msg.watching; this.attempt = 1; this.onStatus('ok'); this.onJoined && this.onJoined(msg); }
       else if (msg.t === 'lobby') this.onLobby(msg);
       else if (msg.t === 'state') this.onState(msg.view);
       else if (msg.t === 'error') this.onError(msg.msg);
+      else if (msg.t === 'version') this.onVersion && this.onVersion(msg);
     });
     conn.on('close', () => { if (this.conn === conn) this.scheduleReconnect(); });
     conn.on('error', () => { if (this.conn === conn) this.scheduleReconnect(); });

@@ -76,6 +76,8 @@ export function planCpuTurn({ table, rack, hasMelded, level = 'normal' }) {
   if (level === 'hard') {
     const r = rearrangePlays(newTable, newRack);
     if (r.played) { newTable = r.table; newRack = r.rack; played = true; }
+    const j = finishWithJoker(newTable, newRack);
+    if (j) { newTable = j.table; newRack = j.rack; played = true; }
   }
   return played ? { action: 'play', table: newTable, rack: newRack } : { action: 'draw' };
 }
@@ -127,4 +129,21 @@ export function rearrangePlays(table, rack) {
     }
   }
   return { table: t, rack: r, played };
+}
+
+/** 어려운 컴퓨터: 손패가 3장 이하이고 조커가 있으면, 조커를 써서 이번 차례에 다 내거나 1장만 남길 수 있을 때만 쓴다 */
+export function finishWithJoker(table, rack) {
+  const joker = rack.find(t => t.joker);
+  if (!joker || rack.length > 3) return null;
+  const others = rack.filter(t => t !== joker);
+  // ① 조커 + 나머지 전부가 한 묶음 → 다 냄
+  if (others.length >= 2 && isValidSet([...others, joker])) return { table: [...table, [...others, joker]], rack: [] };
+  // ② 조커(+1장)를 바닥 묶음에 덧붙여 비우기
+  const tryAppend = tiles => { const i = table.findIndex(set => isValidSet([...set, ...tiles])); return i < 0 ? null : table.map((set, k) => (k === i ? [...set, ...tiles] : set)); };
+  if (others.length === 0) { const t = tryAppend([joker]); if (t) return { table: t, rack: [] }; }
+  if (others.length === 1) {
+    const t1 = tryAppend([joker, others[0]]); if (t1) return { table: t1, rack: [] };
+    const t2 = tryAppend([joker]); if (t2) return { table: t2, rack: others };   // 1장만 남김
+  }
+  return null;
 }

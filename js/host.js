@@ -192,7 +192,8 @@ export class GameHost {
   }
   clearTimer() { if (this._timer) this.clearTimeout(this._timer); this._timer = null; }
   broadcastState() {
-    const extra = { deadline: this.deadline, watchers: this.watchers.map(w => w.name) };
+    // 시계가 다른 폰끼리 어긋나지 않게 절대 시각 대신 '남은 ms'를 보낸다
+    const extra = { remaining: this.deadline ? Math.max(0, this.deadline - Date.now()) : null, watchers: this.watchers.map(w => w.name) };
     this.seats.forEach((s, i) => {
       if (s.type !== 'human') return;
       this.send(i, { t: 'state', view: buildView(this.game, i, extra) });

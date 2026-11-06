@@ -91,7 +91,8 @@ export function endTurn(g) {
   const placedIds = new Set(g.snapshot.rack.filter(t => !p.rack.includes(t)).map(t => t.id));
   const placed = g.table.flat().filter(t => placedIds.has(t.id));
   const names = placed.map(tileLabel).join(', ');
-  g.lastTurn = { seat: p.id, name: p.name, placed, meldValue: p.hasMelded ? null : r.meldValue, rearranged: tableRearranged(g.snapshot.table, g.table, placedIds), turnNo: ++g.turnNo };
+  const changedSets = rearrangedSetKeys(g.snapshot.table, g.table, placedIds);
+  g.lastTurn = { seat: p.id, name: p.name, placed, meldValue: p.hasMelded ? null : r.meldValue, rearranged: changedSets.length > 0, changedSets, turnNo: ++g.turnNo };
   if (!p.hasMelded) { p.hasMelded = true; g.log.push(`${p.name} 처음 30점 내기 성공 (${r.meldValue}점): ${names}`); }
   else g.log.push(`${p.name} 냄: ${names}`);
   if (p.rack.length === 0) return finish(g, p);
@@ -114,11 +115,11 @@ export function drawTile(g) {
 
 const COLOR_KO = { red: '빨강', blue: '파랑', black: '검정', orange: '주황' };
 export function tileLabel(t) { return t.joker ? '조커' : `${COLOR_KO[t.color]} ${t.num}`; }
-/** 기존 묶음을 다시 짰는지(새 타일만 더한 게 아닌지) */
-function tableRearranged(before, after, placedIds) {
+/** 다시 짠(새 타일만 더한 게 아닌) 묶음들의 키 목록 */
+function rearrangedSetKeys(before, after, placedIds) {
   const key = s => s.map(t => t.id).sort().join(',');
   const beforeKeys = new Set(before.map(key));
-  return after.some(s => { const rest = s.filter(t => !placedIds.has(t.id)); return rest.length > 0 && !beforeKeys.has(key(rest)) && !beforeKeys.has(key(s)); });
+  return after.filter(s => { const rest = s.filter(t => !placedIds.has(t.id)); return rest.length > 0 && !beforeKeys.has(key(rest)) && !beforeKeys.has(key(s)); }).map(key);
 }
 function advance(g) {
   g.turn = (g.turn + 1) % g.players.length;
