@@ -609,7 +609,7 @@ function render(cpuView = false) {
   $('autoPlayBtn').classList.toggle('hidden', !allowSuggest);
   $('suggestBtn').disabled = $('autoPlayBtn').disabled = !myTurn;
   $('sortBtn').disabled = cpuView; $('sortBtn').textContent = { num: '숫자순', color: '색깔순', free: '내 맘대로' }[sortMode];
-  $('rowsBtn').disabled = free;
+  $('rowsBtn').classList.toggle('hidden', free);   // 묶음 칸이 켜져 있으면 줄 수 설정은 의미 없음
   $('zonesBtn').textContent = free ? '묶음 칸 끄기' : '묶음 칸 켜기';
   $('zonesBtn').classList.toggle('hidden', cpuView);
   if (!myTurn) selected.clear();

@@ -92,12 +92,12 @@ button.primary { background: var(--accent); color: var(--accent-text); border-co
   .rack .tile { flex: 0 0 auto; }
   .tile { width: 38px; height: 54px; font-size: 19px; }
   .tile.selected { transform: translateY(-6px); }
-  /* 버튼: 두 줄. 아래 줄(뽑기·차례 끝)은 항상 전체 폭으로 보이게 */
-  .actions { padding: 6px 10px; gap: 6px; flex-wrap: wrap; }
-  .actions .group { flex-wrap: wrap; width: 100%; }   /* 잘려서 안 보이는 것보다 두 줄이 낫다 */
-  .actions .group:not(.main) button { flex: 1 1 auto; }
+  /* 버튼: 보조 버튼 한 줄 + 뽑기·차례 끝 한 줄 */
+  .actions { padding: 5px 8px; gap: 5px; flex-wrap: wrap; }
+  .actions .group { flex-wrap: nowrap; width: 100%; gap: 4px; }   /* 보조 버튼은 한 줄로: 아래 타일 칸에 세로 공간을 더 준다 */
+  .actions .group:not(.main) button { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; padding: 7px 4px; }
   .actions .group.main { margin-left: 0; }
-  .actions .group.main button { flex: 1; font-weight: 700; padding: 11px 8px; font-size: 15px; }
+  .actions .group.main button { flex: 1; font-weight: 700; padding: 9px 8px; font-size: 15px; }
   .actions button { padding: 8px 9px; font-size: 13px; white-space: nowrap; }
   .hint { font-size: 12px; padding: 3px 10px; min-height: 18px; }
   .drag-ghost { width: 44px; height: 60px; font-size: 20px; }
@@ -163,7 +163,7 @@ button.primary { background: var(--accent); color: var(--accent-text); border-co
 .tile.just-moved { animation: tilePop .45s ease-out; z-index: 2; }
 
 /* 도움말 */
-.help { margin-left: 8px; width: 26px; height: 26px; padding: 0; border-radius: 50%; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; line-height: 1; flex-shrink: 0; }
+.help, button.help.mini { margin-left: 8px; width: 26px; height: 26px; padding: 0; border-radius: 50%; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; line-height: 1; flex-shrink: 0; }
 .modal { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; z-index: 2000; padding: 16px; }
 .modal-box { background: var(--panel); border-radius: 12px; padding: 20px; max-width: 440px; width: 100%; max-height: 90vh; overflow: auto; }
 .modal-box h3 { margin-top: 0; }
@@ -222,7 +222,7 @@ button.on { background: var(--accent); color: var(--accent-text); border-color: 
 .scores td.total { font-weight: 700; color: var(--accent); }
 
 /* 이모지 반응 */
-.help.emoji { margin-left: 4px; font-size: 14px; }
+button.help.emoji { margin-left: 4px; font-size: 14px; }
 .emoji-bar { position: fixed; top: 44px; right: 10px; z-index: 1500; display: flex; gap: 4px; background: var(--panel); border: 1px solid #5a6e5c; border-radius: 24px; padding: 6px; box-shadow: 0 6px 18px rgba(0,0,0,.5); }
 .emoji-bar button { font-size: 22px; padding: 4px 8px; border: none; background: transparent; line-height: 1; }
 .emoji-bar button:active { transform: scale(1.3); }
@@ -319,7 +319,7 @@ button.big { width: 100%; padding: 14px; font-size: 16px; border-radius: 12px; m
 .rack.free .zone-row .zone.new { flex: 1 1 auto; }
 .rack.free .zone-row .zone.new.slim { flex: 0 0 48px; }
 .rack.free .zone.new.slim:empty::after { content: '+'; font-size: 20px; }
-.rack.free .zone.top:empty::after { content: '다 만든 묶음을 여기 올려 두세요 · 칸은 여러 개 · 두 번 누르면 넣고 빼기'; color: var(--muted); font-size: 12px; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+.rack.free .zone.top:empty::after { content: '다 만든 묶음은 여기에 · 두 번 누르면 넣고 빼기'; color: var(--muted); font-size: 12px; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
 .rack.free .zone.drop-hover { box-shadow: inset 0 0 0 2px var(--accent); background: rgba(143,219,36,.15); }
 .rack.free .tile { flex: 0 0 auto; }
 @media (max-width: 720px) { .rack.free { padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); } .rack.free .zone { min-height: 56px; } }
