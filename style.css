@@ -263,3 +263,50 @@ body.is-dragging .table, body.is-dragging .rack { overflow: hidden; }
   #hostControls { gap: 6px; }
 }
 @media (max-width: 360px) { .tab { font-size: 12px; padding: 8px 2px; } }
+
+/* ===== 설정 화면 새 디자인 ===== */
+.setup-card { padding: 20px 20px 16px; }
+.hero { text-align: center; margin-bottom: 16px; }
+.hero-tiles { display: inline-flex; gap: 4px; margin-bottom: 8px; }
+.hero-tiles .tile { width: 30px; height: 42px; font-size: 16px; cursor: default; transform: rotate(-4deg); }
+.hero-tiles .tile:nth-child(2) { transform: rotate(2deg) translateY(-3px); }
+.hero-tiles .tile:nth-child(3) { transform: rotate(-1deg); }
+.hero-tiles .tile:nth-child(4) { transform: rotate(5deg) translateY(-2px); }
+.hero h2 { margin: 0; font-size: 26px; letter-spacing: .12em; }
+.hero p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+.setup-card .tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; background: #1b261d; padding: 4px; border-radius: 12px; margin-bottom: 16px; }
+.setup-card .tab { border: none; border-radius: 9px; background: transparent; color: var(--muted); padding: 10px 4px; font-size: 14px; font-weight: 600; white-space: nowrap; }
+.setup-card .tab.active { background: var(--accent); color: var(--accent-text); box-shadow: 0 2px 8px rgba(0,0,0,.35); }
+.setup-card label { color: var(--muted); font-size: 13px; margin: 12px 0 6px; }
+.setup-card input[type="text"], .setup-card select { display: block; width: 100%; margin-top: 6px; background: #1b261d; color: var(--text); border: 1px solid #44584a; border-radius: 10px; padding: 12px 14px; font-size: 16px; }
+.setup-card input:focus, .setup-card select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(143,219,36,.2); }
+.setup-card input::placeholder { color: #6f7f6c; }
+.setup-card .player-row { display: grid; grid-template-columns: 24px 1fr 96px; gap: 8px; align-items: center; margin: 8px 0; }
+.setup-card .player-row span { color: var(--muted); font-size: 13px; text-align: center; }
+.setup-card .player-row input, .setup-card .player-row select { margin: 0; padding: 10px 12px; max-width: none; }
+.setup-card #playerCount { width: auto; display: inline-block; margin: 0 0 0 8px; padding: 8px 32px 8px 12px; }
+.setup-card label:has(#playerCount) { display: flex; align-items: center; margin: 0 0 6px; }
+.setup-card .muted { font-size: 13px; line-height: 1.5; margin: 8px 0 14px; }
+button.big { width: 100%; padding: 14px; font-size: 16px; border-radius: 12px; margin-top: 14px; }
+.setup-card .rules { margin-top: 18px; border-top: 1px solid #3a4a3c; padding-top: 12px; }
+.setup-card .rules summary { cursor: pointer; font-size: 14px; color: var(--text); }
+.setup-card .resume { margin-bottom: 14px; }
+@media (max-width: 720px) {
+  #setup { align-items: flex-start; padding-top: 0; }
+  .setup-card { width: 100%; margin: 0; border-radius: 0; min-height: calc(100vh - 40px); min-height: calc(100dvh - 40px); padding: 18px 18px calc(18px + env(safe-area-inset-bottom)); }
+  .hero { margin: 4px 0 18px; }
+  .setup-card .player-row { grid-template-columns: 20px 1fr 92px; }
+  .topbar h1 { display: none; }   /* 설정 화면엔 히어로 제목이 있으니 상단바 제목은 숨김 */
+  body.in-game .topbar h1 { display: block; }
+}
+.screen, .card, .tabs, .tab, .tabpane, .player-row, .hero { min-width: 0; }
+.setup-card { max-width: 100%; overflow: hidden; }
+
+/* 내 맘대로 정리: 두 구역(모아 둔 것 / 나머지), 줄바꿈, 끌어서 순서 바꾸기 */
+.rack.free { display: flex; flex-direction: column; gap: 6px; overflow: visible; padding: 8px 10px; max-height: 42vh; overflow-y: auto; }
+.rack.free .zone { display: flex; flex-wrap: wrap; gap: 4px; min-height: 58px; border-radius: 8px; padding: 4px; position: relative; }
+.rack.free .zone.top { background: rgba(143,219,36,.08); border: 1px dashed rgba(143,219,36,.45); }
+.rack.free .zone.top:empty::after { content: '다 만든 묶음을 여기 올려 두세요'; color: var(--muted); font-size: 12px; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+.rack.free .zone.drop-hover { box-shadow: inset 0 0 0 2px var(--accent); background: rgba(143,219,36,.15); }
+.rack.free .tile { flex: 0 0 auto; }
+@media (max-width: 720px) { .rack.free { padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); } .rack.free .zone { min-height: 56px; } }

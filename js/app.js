@@ -16,7 +16,9 @@ let game = null;           // local 모드 전용
 let view = null;           // 현재 화면 상태
 let selected = new Set();
 let lastHumanShown = -1;
-let sortMode = 'num';
+let sortMode = 'num';        // num | color | free(내 맘대로)
+let freeLayout = { top: [], bottom: [] };   // 내 맘대로 정리 배치(타일 id)
+let pendingPlace = null;    // 바닥→내 타일로 가져올 때 놓을 자리
 let countdownTimer = null;
 let suggestIds = new Set();  // 추천으로 깜빡일 타일
 let lastMoved = new Set();   // 직전 조작으로 옮긴 타일 id (놓은 곳 강조용)
@@ -228,7 +230,7 @@ document.addEventListener('pointermove', e => {
   if (drag.scrolling) { $('rack').scrollLeft = drag.scrollStart - dx; return; }
   if (!drag.moved) {
     if (Math.hypot(dx, dy) < 6) return;
-    if (drag.inRack && Math.abs(dx) > Math.abs(dy) * 1.2) { drag.scrolling = true; $('rack').scrollLeft = drag.scrollStart - dx; return; }
+    if (drag.inRack && sortMode !== 'free' && Math.abs(dx) > Math.abs(dy) * 1.2) { drag.scrolling = true; $('rack').scrollLeft = drag.scrollStart - dx; return; }
     drag.moved = true;
     const ids = selected.has(drag.id) ? [...selected] : [drag.id];
     drag.ids = ids;
@@ -256,6 +258,16 @@ document.addEventListener('pointerup', e => {
   const target = dropTargetAt(e.clientX, e.clientY);
   if (!target) return render();
   if (target.kind === 'set' && target.index === d.fromSet) return render();
+  if (target.kind === 'rack' && sortMode === 'free') {
+    const place = rackPlacement(e.clientX, e.clientY, d.ids);
+    if (d.inRack) { applyPlacement(d.ids, place); selected.clear(); return render(); }
+    const mine = d.ids.filter(id => new Set(view.newIds).has(id));
+    if (!mine.length) { flash('이번 차례에 내가 낸 타일만 다시 가져올 수 있어요.'); return render(); }
+    pendingPlace = { ids: mine, ...place }; selected.clear();
+    return dispatch({ type: 'move', ids: mine, to: { kind: 'rack' } });
+  }
+  if (target.kind === 'rack' && d.inRack) return render();
+  if (!(view.seat === view.turn)) { flash('내 차례가 아니에요. 지금은 내 타일 정리만 할 수 있어요.'); return render(); }
   if (target.kind === 'rack') {
     const newIds = new Set(view.newIds);
     const mine = d.ids.filter(id => newIds.has(id));
@@ -314,7 +326,10 @@ function highlightDropTarget(x, y) {
   if (!t) return;
   if (t.kind === 'set') { const el = setEl(t.index); el && el.classList.add('drop-hover'); }
   else if (t.kind === 'new') $('table').classList.add('drop-hover');
-  else { $('rack').classList.add('drop-hover'); $('rackBar').classList.add('drop-hover'); }
+  else {
+    $('rack').classList.add('drop-hover'); $('rackBar').classList.add('drop-hover');
+    if (sortMode === 'free') { const z = document.elementFromPoint(x, y); const zone = z && z.closest('.zone'); zone && zone.classList.add('drop-hover'); }
+  }
 }
 function setEl(idx) { return $('table').querySelector(`.set[data-idx="${idx}"]`); }
 /** 바닥 묶음 표시 순서: 정리 모드면 연속 묶음(색→시작 숫자) → 같은 숫자 묶음(숫자) → 아직 안 맞는 묶음 */
@@ -330,6 +345,45 @@ function displayOrder(table) {
   };
   const keys = table.map(keyOf);
   return idx.sort((x, y) => keys[x][0] - keys[y][0] || keys[x][1] - keys[y][1] || keys[x][2] - keys[y][2] || x - y);
+}
+/** 내 맘대로 배치를 현재 손패에 맞춰 정리(없어진 id 제거, 새 id는 아래 줄 끝에) */
+function freeOrder(rack) {
+  const byId = new Map(rack.map(t => [t.id, t]));
+  const has = new Set(rack.map(t => t.id));
+  freeLayout.top = freeLayout.top.filter(id => has.has(id));
+  freeLayout.bottom = freeLayout.bottom.filter(id => has.has(id));
+  const placed = new Set([...freeLayout.top, ...freeLayout.bottom]);
+  const missing = rack.filter(t => !placed.has(t.id)).map(t => t.id);
+  if (pendingPlace && missing.length) {
+    const ids = missing.filter(id => pendingPlace.ids.includes(id));
+    applyPlacement(ids, pendingPlace);
+    missing.filter(id => !ids.includes(id)).forEach(id => freeLayout.bottom.push(id));
+  } else freeLayout.bottom.push(...missing);
+  pendingPlace = null;
+  return { top: freeLayout.top.map(id => byId.get(id)), bottom: freeLayout.bottom.map(id => byId.get(id)) };
+}
+function applyPlacement(ids, { zone, index }) {
+  const idSet = new Set(ids);
+  freeLayout.top = freeLayout.top.filter(id => !idSet.has(id));
+  freeLayout.bottom = freeLayout.bottom.filter(id => !idSet.has(id));
+  const arr = freeLayout[zone];
+  arr.splice(Math.min(index, arr.length), 0, ...ids);
+}
+/** 내 타일 칸 안의 좌표 → 어느 구역의 몇 번째 자리인지 */
+function rackPlacement(x, y, movingIds) {
+  const moving = new Set(movingIds);
+  const zones = [...$('rack').querySelectorAll('.zone')];
+  if (!zones.length) return { zone: 'bottom', index: 0 };
+  let zoneEl = zones.find(z => { const r = z.getBoundingClientRect(); return y >= r.top && y <= r.bottom; });
+  if (!zoneEl) { const r0 = zones[0].getBoundingClientRect(); zoneEl = y < r0.bottom ? zones[0] : zones[zones.length - 1]; }
+  const tiles = [...zoneEl.querySelectorAll('.tile')].filter(t => !moving.has(Number(t.dataset.id)));
+  let index = 0;
+  for (const t of tiles) {
+    const r = t.getBoundingClientRect(); const cy = (r.top + r.bottom) / 2, cx = (r.left + r.right) / 2;
+    if (cy + r.height / 2 < y) index++;                       // 윗줄에 있는 타일
+    else if (Math.abs(cy - y) <= r.height / 2 + 3 && cx < x) index++;  // 같은 줄에서 왼쪽
+  }
+  return { zone: zoneEl.dataset.zone, index };
 }
 function sortRack(rack) {
   const ci = t => (t.joker ? 99 : COLORS.indexOf(t.color));
@@ -379,11 +433,21 @@ function render(cpuView = false) {
   $('rowsBtn').classList.toggle('on', prefs.rows === 'two');
   $('emojiBtn').classList.toggle('hidden', mode === 'local');
   if (v.reaction && v.reaction.at !== lastReactionAt) { lastReactionAt = v.reaction.at; showReaction(v.reaction); }
-  for (const t of sortRack(v.rack)) {
-    const el = tileEl(t, { hidden: cpuView, draggable: myTurn });
+  const free = sortMode === 'free' && !cpuView;
+  rack.classList.toggle('free', free);
+  const mkTile = t => {
+    const el = tileEl(t, { hidden: cpuView, draggable: myTurn || free });   // 내 맘대로 모드에선 남의 차례에도 정리 가능
     if (myTurn) el.addEventListener('click', () => { toggle(t.id); render(); });
-    rack.appendChild(el);
-  }
+    return el;
+  };
+  if (free) {
+    const o = freeOrder(v.rack);
+    for (const zone of ['top', 'bottom']) {
+      const z = document.createElement('div'); z.className = 'zone ' + zone; z.dataset.zone = zone;
+      o[zone].forEach(t => z.appendChild(mkTile(t)));
+      rack.appendChild(z);
+    }
+  } else for (const t of sortRack(v.rack)) rack.appendChild(mkTile(t));
 
   $('players').innerHTML = v.players.map((x, i) => `
     <div class="p ${i === v.turn ? 'active' : ''}">
@@ -419,7 +483,8 @@ function render(cpuView = false) {
   $('suggestBtn').classList.toggle('hidden', !allowSuggest);
   $('autoPlayBtn').classList.toggle('hidden', !allowSuggest);
   $('suggestBtn').disabled = $('autoPlayBtn').disabled = !myTurn;
-  $('sortBtn').disabled = cpuView; $('sortBtn').textContent = sortMode === 'num' ? '숫자순' : '색깔순';
+  $('sortBtn').disabled = cpuView; $('sortBtn').textContent = { num: '숫자순', color: '색깔순', free: '내 맘대로' }[sortMode];
+  $('rowsBtn').disabled = free;
   if (!myTurn) selected.clear();
   startCountdown(v.deadline);
 }
@@ -577,7 +642,11 @@ function showReaction(r) {
   setTimeout(() => el.remove(), 2700);
   if (r.seat !== view.seat) { try { navigator.vibrate && navigator.vibrate(40); } catch {} }
 }
-$('sortBtn').addEventListener('click', () => { sortMode = sortMode === 'num' ? 'color' : 'num'; render(); });
+$('sortBtn').addEventListener('click', () => {
+  sortMode = { num: 'color', color: 'free', free: 'num' }[sortMode];
+  if (sortMode === 'free') { freeLayout = { top: [], bottom: [] }; freeLayout.bottom = sortRack(view.rack).map(t => t.id); flash('내 맘대로: 타일을 끌어서 순서를 바꾸고, 다 만든 묶음은 위 칸에 올려 두세요.'); $('hint').className = 'hint good'; }
+  render();
+});
 $('drawBtn').addEventListener('click', () => { selected.clear(); dispatch({ type: 'draw' }); });
 $('endBtn').addEventListener('click', () => { selected.clear(); dispatch({ type: 'end' }); });
 
