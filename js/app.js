@@ -25,6 +25,7 @@ let lastMoved = new Set();   // 직전 조작으로 옮긴 타일 id (놓은 곳
 let lastMovedAt = 0;
 let tidy = false;            // 바닥 묶음을 정렬해서 보기(내 화면만)
 let wasMyTurn = false;       // 내 차례 알림용
+let shownTurnNo = 0;         // 상대 수 애니메이션을 한 번만
 let prefs = { symbols: false, alert: true, pinpoint: true, rows: 'one', local: false };
 let rackCollapsed = false;
 let lastReactionAt = 0;
@@ -44,7 +45,7 @@ function renderSetupRows() {
   for (let i = 0; i < n; i++) {
     const row = document.createElement('div'); row.className = 'player-row';
     row.innerHTML = `<span>${i + 1}</span><input type="text" placeholder="플레이어 ${i + 1}" maxlength="10" data-name>
-      <select data-type><option value="human">사람</option><option value="cpu">컴퓨터</option></select>`;
+      <select data-type><option value="human">사람</option><option value="cpu">컴퓨터</option><option value="hard">컴퓨터(어려움)</option></select>`;
     rows.appendChild(row);
   }
 }
@@ -52,7 +53,8 @@ $('playerCount').addEventListener('change', renderSetupRows);
 $('startBtn').addEventListener('click', () => {
   const defs = [...$('playerRows').children].map((row, i) => ({
     name: row.querySelector('[data-name]').value.trim() || `플레이어 ${i + 1}`,
-    type: row.querySelector('[data-type]').value,
+    type: row.querySelector('[data-type]').value === 'human' ? 'human' : 'cpu',
+    level: row.querySelector('[data-type]').value === 'hard' ? 'hard' : 'normal',
   }));
   if (defs.length < MIN_PLAYERS || defs.length > MAX_PLAYERS) return;
   mode = 'local'; game = createGame(defs); selected.clear(); lastHumanShown = -1;
@@ -110,7 +112,7 @@ $('joinBtn').addEventListener('click', () => {
   show('lobby');
   session = new ClientSession({
     code, name, token,
-    onJoined: () => { $('lobbyStatus').textContent = '들어왔어요. 방장이 시작하길 기다리는 중…'; },
+    onJoined: j => { $('lobbyStatus').textContent = j.watching ? '게임이 진행 중이라 구경하다가 다음 판부터 같이 해요.' : '들어왔어요. 방장이 시작하길 기다리는 중…'; },
     onLobby: renderLobby,
     onState: onView,
     onError: msg => { $('lobbyStatus').textContent = msg; flash(msg); },
@@ -145,11 +147,14 @@ function renderLobby(lobby) {
   const isHost = mode === 'host';
   $('lobbyPlayers').innerHTML = lobby.players.map((p, i) => `
     <div class="p">
-      <span>${i + 1}. ${esc(p.name)}${p.type === 'cpu' ? ' <small>컴퓨터</small>' : ''}${p.connected ? '' : ' <small>(끊김)</small>'}</span>
+      <span>${i + 1}. ${esc(p.name)}${p.type === 'cpu' ? ' <small>컴퓨터</small>' : ''}${p.wins ? ` <span class="wins">🏆${p.wins}</span>` : ''}${p.connected ? '' : ' <small>(끊김)</small>'}</span>
       ${isHost && i > 0 ? `<button class="mini" data-remove="${i}">내보내기</button>` : ''}
     </div>`).join('');
   $('lobbyPlayers').querySelectorAll('[data-remove]').forEach(b => b.addEventListener('click', () => session.removeSeat(Number(b.dataset.remove))));
   $('hostControls').classList.toggle('hidden', !isHost);
+  const ws = lobby.watchers || [];
+  $('lobbyWatchers').classList.toggle('hidden', !ws.length);
+  $('lobbyWatchers').textContent = ws.length ? `구경 중(다음 판부터 참가): ${ws.join(', ')}` : '';
   $('turnLimit').value = String(lobby.turnLimit);
   $('turnLimitView').textContent = lobby.turnLimit ? `턴 제한 ${lobby.turnLimit}초` : '턴 제한 없음';
   if (isHost) {
@@ -159,7 +164,7 @@ function renderLobby(lobby) {
     $('lobbyStatus').textContent = n < 2 ? '같이 할 사람을 기다리는 중 (2~4명)' : `${n}명 모였어요. 시작할 수 있어요`;
   }
 }
-$('addCpuBtn').addEventListener('click', () => session.addCpu());
+$('addCpuBtn').addEventListener('click', () => session.addCpu($('cpuLevel').value));
 $('turnLimit').addEventListener('change', () => session.setTurnLimit(Number($('turnLimit').value)));
 $('lobbyStart').addEventListener('click', () => session.start());
 
@@ -416,6 +421,9 @@ function render(cpuView = false) {
   const myTurn = !cpuView && v.seat === v.turn;
   const newIds = new Set(v.newIds);
   const lastIds = new Set(v.lastTurn && v.lastTurn.seat !== v.seat ? v.lastTurn.placed.map(t => t.id) : []);
+  const fly = v.lastTurn && v.lastTurn.seat !== v.seat && v.lastTurn.turnNo && v.lastTurn.turnNo !== shownTurnNo;   // 새로 들어온 상대 수
+  if (v.lastTurn && v.lastTurn.turnNo) shownTurnNo = v.lastTurn.turnNo;
+  let flyIdx = 0, flySet = null;
 
   const banner = $('lastTurn');
   const lt = v.lastTurn;
@@ -437,16 +445,23 @@ function render(cpuView = false) {
     const fresh = Date.now() - lastMovedAt < 1500;
     if (fresh && set.some(t => lastMoved.has(t.id))) el.classList.add('just-dropped');
     const bad = new Set(!a.ok && prefs.pinpoint ? offendingTiles(set) : []);
-    (a.ok ? a.ordered : set).forEach(t => el.appendChild(tileEl(t, { isNew: newIds.has(t.id), lastPlaced: lastIds.has(t.id), draggable: myTurn, justMoved: fresh && lastMoved.has(t.id), bad: bad.has(t.id) })));
+    (a.ok ? a.ordered : set).forEach(t => {
+      const te = tileEl(t, { isNew: newIds.has(t.id), lastPlaced: lastIds.has(t.id), draggable: myTurn, justMoved: fresh && lastMoved.has(t.id), bad: bad.has(t.id) });
+      if (fly && lastIds.has(t.id)) { te.classList.add('fly-in'); te.style.animationDelay = `${Math.min(flyIdx++, 8) * 70}ms`; flySet ||= el; }
+      el.appendChild(te);
+    });
     if (myTurn) el.addEventListener('click', e => onSetClick(e, idx));
     table.appendChild(el);
   });
 
+  if (flySet) setTimeout(() => { try { flySet.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch {} }, 50);
   const rack = $('rack'); rack.innerHTML = '';
+  if (v.watching) { const n = document.createElement('div'); n.className = 'watching-note'; n.textContent = '구경 중이에요. 이 판이 끝나면 다음 판부터 같이 해요.'; rack.appendChild(n); }
   rack.classList.toggle('two', prefs.rows === 'two');
   rack.classList.toggle('collapsed', rackCollapsed);
   $('rackBar').classList.toggle('collapsed', rackCollapsed);
-  $('rackInfo').textContent = cpuView ? '' : `내 타일 ${v.rack.length}장${rackCollapsed ? ' (접힘 — 여기로 끌어오면 돌아와요)' : ''}`;
+  $('rackInfo').textContent = cpuView ? '' : v.watching ? '구경 중' : `내 타일 ${v.rack.length}장${rackCollapsed ? ' (접힘 — 여기로 끌어오면 돌아와요)' : ''}`;
+  if (v.watchers && v.watchers.length && !v.watching) $('status').textContent += ` · 구경 ${v.watchers.length}명`;
   $('rackToggle').textContent = rackCollapsed ? '▲ 타일 칸 올리기' : '▼ 타일 칸 내리기';
   $('rowsBtn').classList.toggle('on', prefs.rows === 'two');
   $('emojiBtn').classList.toggle('hidden', mode === 'local');
@@ -469,7 +484,7 @@ function render(cpuView = false) {
 
   $('players').innerHTML = v.players.map((x, i) => `
     <div class="p ${i === v.turn ? 'active' : ''}">
-      <span>${esc(x.name)}${x.type === 'cpu' ? ' <small>컴퓨터</small>' : ''}${i === v.seat ? ' <small>(나)</small>' : ''}${x.connected ? '' : ' <small>끊김</small>'}</span>
+      <span>${esc(x.name)}${x.type === 'cpu' && !/컴퓨터/.test(x.name) ? ' <small>컴퓨터</small>' : ''}${i === v.seat ? ' <small>(나)</small>' : ''}${x.wins ? ` <span class="wins">🏆${x.wins}</span>` : ''}${x.connected ? '' : ' <small>끊김</small>'}</span>
       <span class="meta">${x.count}장${x.hasMelded ? '' : ' · 30점 전'}</span>
     </div>`).join('');
   $('poolCount').textContent = v.pool;
@@ -477,6 +492,7 @@ function render(cpuView = false) {
 
   const me = v.players[v.seat];
   if (cpuView) $('status').textContent = '';
+  else if (v.watching) $('status').textContent = '구경 중';
   else if (myTurn) $('status').textContent = '내 차례';
   else $('status').textContent = `${v.currentName}의 차례예요. 기다려 주세요`;
 
@@ -678,8 +694,10 @@ function renderOver(v) {
   $('roundInfo').textContent = `${round}판째 결과`;
   $('winnerText').textContent = `${w.name} 승리!`;
   const sign = n => (n > 0 ? '+' : '') + n;
-  $('scoreTable').innerHTML = `<tr><th>플레이어</th><th>남은 타일</th><th>이번 판</th>${round > 1 ? '<th>누적</th>' : ''}</tr>` +
-    v.players.map((p, i) => `<tr class="${i === v.winner ? 'winner' : ''}"><td>${esc(p.name)}</td><td>${p.count}장</td><td>${sign(p.score)}</td>${round > 1 ? `<td class="total">${sign(p.total || 0)}</td>` : ''}</tr>`).join('');
+  const multi = round > 1;
+  $('scoreTable').innerHTML = `<tr><th>플레이어</th><th>남은 타일</th><th>이번 판</th>${multi ? '<th>누적</th><th>승</th>' : ''}</tr>` +
+    v.players.map((p, i) => `<tr class="${i === v.winner ? 'winner' : ''}"><td>${esc(p.name)}</td><td>${p.count}장</td><td>${sign(p.score)}</td>${multi ? `<td class="total">${sign(p.total || 0)}</td><td>${p.wins || 0}</td>` : ''}</tr>`).join('');
+  $('rematchWait').textContent = v.watching ? '다음 판부터 같이 해요. 방장이 시작하길 기다리는 중…' : '방장이 다음 판을 시작하길 기다리는 중…';
   const canRematch = mode !== 'client';
   $('rematchBtn').classList.toggle('hidden', !canRematch);
   $('rematchWait').classList.toggle('hidden', canRematch);
@@ -689,7 +707,7 @@ $('rematchBtn').addEventListener('click', () => {
   selected.clear(); lastMoved.clear();
   if (mode === 'local') {
     const v = view;
-    game = createGame(v.players.map(p => ({ name: p.name, type: p.type, total: p.total || 0 })), Math.random, { round: (v.round || 1) + 1 });
+    game = createGame(v.players.map(p => ({ name: p.name, type: p.type, level: p.level, total: p.total || 0, wins: p.wins || 0 })), Math.random, { round: (v.round || 1) + 1 });
     lastHumanShown = -1; return localFlow();
   }
   if (mode === 'host') session.rematch();

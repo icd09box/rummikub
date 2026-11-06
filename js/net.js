@@ -1,5 +1,5 @@
 // PeerJS 연결 층. 방장: 코드 발급 + 참가자 연결 수신. 참가자: 코드로 접속(끊기면 자동 재접속).
-import { GameHost } from './host.js';
+import { GameHost, WATCHER } from './host.js';
 
 const PREFIX = 'rummikub-ko-';
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -83,9 +83,9 @@ export class HostSession {
         const old = this.conns.get(token);
         if (old && old !== conn) { try { old.close(); } catch {} }
         const seat = this.host.addHuman(String(msg.name || '').slice(0, 10) || '손님', token);
-        if (seat < 0) { conn.send({ t: 'error', msg: '방이 가득 찼거나 게임이 진행 중입니다.' }); setTimeout(() => conn.close(), 300); token = null; return; }
+        if (seat === -1) { conn.send({ t: 'error', msg: '방이 가득 찼어요 (최대 4명).' }); setTimeout(() => conn.close(), 300); token = null; return; }
         this.conns.set(token, conn);
-        conn.send({ t: 'joined', seat, token });
+        conn.send({ t: 'joined', seat: seat === WATCHER ? -1 : seat, token, watching: seat === WATCHER });
         if (this.host.game) this.host.afterChange(); else this.host.broadcastLobby();
       } else if (msg.t === 'action' && token) {
         const seat = this.seatOf(token);
@@ -97,17 +97,18 @@ export class HostSession {
       }
     });
     conn.on('close', () => {
-      if (token && this.conns.get(token) === conn) { this.conns.delete(token); const seat = this.seatOf(token); if (seat >= 0) this.host.disconnect(seat); }
+      if (token && this.conns.get(token) === conn) { this.conns.delete(token); const seat = this.seatOf(token); if (seat >= 0) this.host.disconnect(seat); else this.host.removeWatcher(token); }
     });
     conn.on('error', () => {});
   }
   deliver(seat, msg) {
     if (seat === this.mySeat) { msg.t === 'lobby' ? this.onLobby(msg) : msg.t === 'state' && this.onState(msg.view); return; }
-    const s = this.host.seats[seat]; if (!s || !s.token) return;
-    const c = this.conns.get(s.token); if (c && c.open) { try { c.send(msg); } catch {} }
+    const token = typeof seat === 'string' ? seat : (this.host.seats[seat] || {}).token;   // 구경꾼은 토큰으로 직접
+    if (!token) return;
+    const c = this.conns.get(token); if (c && c.open) { try { c.send(msg); } catch {} }
   }
   // 방장 조작
-  addCpu() { this.host.addCpu(); }
+  addCpu(level) { this.host.addCpu(level); }
   removeSeat(i) { const s = this.host.seats[i]; const c = s && this.conns.get(s.token); if (c) c.close(); this.host.removeSeat(i); }
   setTurnLimit(s) { this.host.setTurnLimit(s); }
   start() { return this.host.start(); }
@@ -148,7 +149,7 @@ export class ClientSession {
     conn.on('open', () => { conn.send({ t: 'join', name: this.name, token: this.token }); });
     conn.on('data', msg => {
       if (!msg || typeof msg !== 'object') return;
-      if (msg.t === 'joined') { this.mySeat = msg.seat; this.attempt = 1; this.onStatus('ok'); this.onJoined && this.onJoined(msg); }
+      if (msg.t === 'joined') { this.mySeat = msg.seat; this.watching = !!msg.watching; this.attempt = 1; this.onStatus('ok'); this.onJoined && this.onJoined(msg); }
       else if (msg.t === 'lobby') this.onLobby(msg);
       else if (msg.t === 'state') this.onState(msg.view);
       else if (msg.t === 'error') this.onError(msg.msg);

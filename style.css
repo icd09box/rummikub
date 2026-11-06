@@ -338,3 +338,9 @@ button.big { width: 100%; padding: 14px; font-size: 16px; border-radius: 12px; m
 .over-card .scores td { padding: 10px 8px; border-bottom: 1px solid #2a382e; }
 .over-card .scores tr:last-child td { border-bottom: none; }
 .over-card .scores tr.winner td { color: var(--accent); font-weight: 700; }
+
+/* 상대가 방금 낸 타일: 날아와 놓이는 움직임 */
+@keyframes flyIn { 0% { opacity: 0; transform: translateY(-40px) scale(1.25) rotate(-6deg); } 60% { opacity: 1; transform: translateY(4px) scale(1.05); } 100% { transform: none; } }
+.tile.fly-in { animation: flyIn .5s cubic-bezier(.2,.8,.3,1.2) both; }
+.players .p .wins { color: #ffd54a; font-size: 11px; margin-left: 4px; }
+.watching-note { color: var(--muted); font-size: 13px; padding: 10px; text-align: center; width: 100%; }

@@ -14,6 +14,7 @@ export function buildView(g, seat, extra = {}) {
     pool: g.pool.length,
     table: g.table,
     rack: me ? me.rack : [],
+    watching: !me,
     newIds: g.snapshot.rack.map(t => t.id),              // 이번 턴 손패에서 나온 타일 표시용
     snapshotSetKeys: g.snapshot.table.map(s => s.map(t => t.id).sort().join(',')),
     changed,
@@ -22,7 +23,7 @@ export function buildView(g, seat, extra = {}) {
     check: changed && g.phase === 'playing' ? checkTurn(g) : null,
     players: g.players.map(p => ({
       name: p.name, type: p.type, count: p.rack.length, hasMelded: p.hasMelded,
-      connected: p.connected !== false, score: p.score, total: p.total || 0,
+      connected: p.connected !== false, score: p.score, total: p.total || 0, wins: p.wins || 0, level: p.level,
       rack: g.phase === 'over' ? p.rack : undefined,
     })),
     log: g.log.slice(-30),

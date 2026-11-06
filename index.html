@@ -72,7 +72,8 @@
         <li>타일을 끌어서 바닥에 놓으면 근처의 맞는 묶음에 <b>알아서 붙어요</b>. 빈 곳에 멀리 놓으면 새 묶음이 되고, 화면 아래로 끌어오면 내 타일로 돌아와요.</li>
         <li>나 말고 전부 컴퓨터인 판에서는 <b>추천</b>·<b>추천대로 내기</b> 버튼이 보여요. 사람이 한 명이라도 더 있으면 숨겨져요.</li>
         <li>온라인: 제한시간이 지나면 자동으로 한 장 뽑아요. 연결이 끊긴 사람 차례는 자동으로 넘어가고, 같은 이름으로 다시 들어오면 자리를 되찾아요. 방장이 실수로 새로고침해도 "온라인 방 만들기" 탭에서 같은 코드로 이어할 수 있어요.</li>
-        <li>판이 끝나면 같은 사람들과 바로 다음 판을 할 수 있고, 점수는 판마다 누적돼요.</li>
+        <li>판이 끝나면 같은 사람들과 바로 다음 판을 할 수 있고, 점수와 승수는 판마다 누적돼요. 게임 중에 들어온 사람은 구경하다가 다음 판부터 같이 해요.</li>
+        <li>컴퓨터는 <b>보통</b>(자기 타일만 냄)과 <b>어려움</b>(바닥 묶음을 쪼개고 빌려서 냄) 중 고를 수 있어요.</li>
       </ul>
     </details>
   </div>
@@ -94,11 +95,15 @@
     <div class="lobby-section">
       <div class="lobby-head"><span>함께 할 사람</span><span id="lobbyStatus" class="muted"></span></div>
       <div id="lobbyPlayers" class="players left"></div>
+      <p id="lobbyWatchers" class="muted small hidden"></p>
     </div>
     <p id="turnLimitView" class="muted small"></p>
     <div id="hostControls" class="hidden">
       <label>한 차례 제한시간
         <select id="turnLimit"><option value="0">없음</option><option value="60">60초</option><option value="120">120초</option></select>
+      </label>
+      <label>컴퓨터 난이도
+        <select id="cpuLevel"><option value="normal">보통 (자기 타일만 냄)</option><option value="hard">어려움 (바닥도 다시 짬)</option></select>
       </label>
       <div class="row">
         <button id="addCpuBtn">컴퓨터 추가</button>

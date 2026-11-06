@@ -3,6 +3,7 @@ import { createGame, current, moveTiles, endTurn, drawTile, resetTurn, undoMove,
 import { buildView } from './view.js';
 
 export const TURN_LIMITS = [0, 60, 120];
+export const WATCHER = -2;   // addHuman 반환값: 구경꾼으로 들어감
 export const EMOJIS = ['👍', '😂', '🔥', '⏰', '😱', '🙏'];
 
 export class GameHost {
@@ -14,7 +15,8 @@ export class GameHost {
     this.send = send;
     this.setTimeout = timers.setTimeout || ((f, ms) => setTimeout(f, ms));
     this.clearTimeout = timers.clearTimeout || (id => clearTimeout(id));
-    this.seats = [];       // { name, type:'human'|'cpu', token, connected }
+    this.seats = [];       // { name, type:'human'|'cpu', token, connected, level }
+    this.watchers = [];    // 게임 중 들어온 구경꾼 { name, token } — 다음 판부터 자리를 받는다
     this.game = null;
     this.turnLimit = 0;    // 초, 0 = 없음
     this.deadline = null;
@@ -26,12 +28,13 @@ export class GameHost {
   // ---------- 저장·복구 ----------
   /** JSON으로 저장할 수 있는 전체 상태 */
   serialize() {
-    return { seats: this.seats, game: this.game, turnLimit: this.turnLimit, round: this.round, savedAt: Date.now() };
+    return { seats: this.seats, watchers: this.watchers, game: this.game, turnLimit: this.turnLimit, round: this.round, savedAt: Date.now() };
   }
   /** serialize()한 상태로 되살림. 타이머·CPU 차례는 다시 돈다. */
   restore(data) {
     this.seats = data.seats.map(s => ({ ...s, connected: s.type === 'cpu' || s.token === 'host' }));
     this.turnLimit = data.turnLimit || 0; this.round = data.round || 0;
+    this.watchers = [];   // 구경꾼은 다시 접속하면서 되살아난다
     this.game = data.game || null;
     if (this.game) this.game.players.forEach((p, i) => { p.connected = this.seats[i].connected; });
     if (this.game && this.game.phase === 'playing') this.afterChange(true); else if (this.game) this.broadcastState(); else this.broadcastLobby();
@@ -47,39 +50,45 @@ export class GameHost {
       return existing;
     }
     if (this.game) {
-      // 게임 중: 같은 이름으로 재접속 시 자리 복구
+      // 게임 중: 같은 이름으로 재접속 시 자리 복구, 아니면 구경꾼(다음 판부터 참가)
       const idx = this.seats.findIndex(s => s.type === 'human' && !s.connected && s.name === name);
-      if (idx < 0) return -1;
-      this.seats[idx].token = token; this.seats[idx].connected = true;
-      this.game.players[idx].connected = true;
+      if (idx >= 0) {
+        this.seats[idx].token = token; this.seats[idx].connected = true;
+        this.game.players[idx].connected = true;
+        this.afterChange();
+        return idx;
+      }
+      if (!this.watchers.some(w => w.token === token)) this.watchers.push({ name, token });
       this.afterChange();
-      return idx;
+      return WATCHER;
     }
     if (this.seats.length >= 4) return -1;
     this.seats.push({ name, type: 'human', token, connected: true });
     this.broadcastLobby();
     return this.seats.length - 1;
   }
-  addCpu() {
+  addCpu(level = 'normal') {
     if (this.game || this.seats.length >= 4) return false;
-    this.seats.push({ name: `CPU ${this.seats.filter(s => s.type === 'cpu').length + 1}`, type: 'cpu', token: null, connected: true });
+    const n = this.seats.filter(s => s.type === 'cpu').length + 1;
+    this.seats.push({ name: level === 'hard' ? `컴퓨터 ${n} (어려움)` : `컴퓨터 ${n}`, type: 'cpu', token: null, connected: true, level: level === 'hard' ? 'hard' : 'normal' });
     this.broadcastLobby(); return true;
   }
+  removeWatcher(token) { const n = this.watchers.length; this.watchers = this.watchers.filter(w => w.token !== token); if (n !== this.watchers.length) { if (this.game) this.broadcastState(); else this.broadcastLobby(); } }
   removeSeat(idx) {
     if (this.game || idx === 0) return;
     this.seats.splice(idx, 1); this.broadcastLobby();
   }
   setTurnLimit(sec) { this.turnLimit = TURN_LIMITS.includes(sec) ? sec : 0; this.broadcastLobby(); }
   lobbyState() {
-    return { t: 'lobby', players: this.seats.map(s => ({ name: s.name, type: s.type, connected: s.connected })), turnLimit: this.turnLimit };
+    return { t: 'lobby', players: this.seats.map(s => ({ name: s.name, type: s.type, connected: s.connected, level: s.level, wins: s.wins || 0 })), watchers: this.watchers.map(w => w.name), turnLimit: this.turnLimit };
   }
-  broadcastLobby() { this.seats.forEach((s, i) => s.type === 'human' && this.send(i, this.lobbyState())); this.persist(); }
+  broadcastLobby() { const l = this.lobbyState(); this.seats.forEach((s, i) => s.type === 'human' && this.send(i, l)); this.watchers.forEach(w => this.send(w.token, l)); this.persist(); }
 
   canStart() { return !this.game && this.seats.length >= 2 && this.seats.length <= 4; }
   start(rng) {
     if (!this.canStart()) return false;
     const totals = this._totals || [];
-    this.game = createGame(this.seats.map((s, i) => ({ name: s.name, type: s.type, total: totals[i] || 0 })), rng, { round: this.round + 1 });
+    this.game = createGame(this.seats.map((s, i) => ({ name: s.name, type: s.type, level: s.level, total: totals[i] || 0, wins: s.wins || 0 })), rng, { round: this.round + 1 });
     this.game.players.forEach((p, i) => { p.connected = this.seats[i].connected; });
     this.afterChange(true);
     return true;
@@ -88,8 +97,15 @@ export class GameHost {
   rematch(rng) {
     if (!this.game || this.game.phase !== 'over') return false;
     this._totals = this.game.players.map(p => p.total);
+    this.game.players.forEach((p, i) => { this.seats[i].wins = p.wins || 0; });
     this.round += 1;
     this.game = null;
+    // 구경하던 사람은 빈자리가 있으면 이번 판부터 참가
+    while (this.watchers.length && this.seats.length < 4) {
+      const w = this.watchers.shift();
+      this.seats.push({ name: w.name, type: 'human', token: w.token, connected: true });
+      this._totals.push(0);
+    }
     return this.start(rng);
   }
 
@@ -176,10 +192,12 @@ export class GameHost {
   }
   clearTimer() { if (this._timer) this.clearTimeout(this._timer); this._timer = null; }
   broadcastState() {
+    const extra = { deadline: this.deadline, watchers: this.watchers.map(w => w.name) };
     this.seats.forEach((s, i) => {
       if (s.type !== 'human') return;
-      this.send(i, { t: 'state', view: buildView(this.game, i, { deadline: this.deadline }) });
+      this.send(i, { t: 'state', view: buildView(this.game, i, extra) });
     });
+    this.watchers.forEach(w => this.send(w.token, { t: 'state', view: buildView(this.game, -1, extra) }));
     this.persist();
   }
 }

@@ -139,3 +139,21 @@ test('이모지 반응: 남의 차례에도 보내지고 모두에게 전달, 1.
   assert.equal(h.applyAction(1, { type: 'react', emoji: '💩' }).ok, false);
   assert.equal(h.game.turn, 0);  // 차례는 그대로
 });
+
+test('게임 중 들어온 사람은 구경꾼, 다음 판부터 자리를 받고 승수가 이어진다', () => {
+  const { h, sent } = mkHost();
+  h.addHuman('A', 'ta'); h.addCpu('hard'); h.start(seeded);
+  assert.equal(h.seats[1].name, '컴퓨터 1 (어려움)'); assert.equal(h.game.players[1].level, 'hard');
+  assert.equal(h.addHuman('C', 'tc'), -2);
+  assert.equal(h.watchers.length, 1);
+  const w = sent.filter(x => x.seat === 'tc' && x.msg.t === 'state').at(-1);
+  assert.ok(w && w.msg.view.watching === true && w.msg.view.rack.length === 0 && w.msg.view.players.length === 2);
+  assert.equal(h.applyAction(-1, { type: 'draw' }).ok, false);
+  // A 승리 처리 후 다음 판
+  const g = h.game; g.players[0].rack = []; g.phase = 'over'; g.winner = 0; g.players[0].wins = 1;
+  assert.ok(h.rematch(seeded));
+  assert.equal(h.seats.length, 3); assert.equal(h.seats[2].name, 'C'); assert.equal(h.watchers.length, 0);
+  assert.equal(h.game.players[0].wins, 1); assert.equal(h.game.players[2].rack.length, 14);
+  const vC = sent.filter(x => x.seat === 2 && x.msg.t === 'state').at(-1).msg.view;
+  assert.equal(vC.watching, false); assert.equal(vC.players[0].wins, 1);
+});

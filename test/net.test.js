@@ -126,3 +126,17 @@ test('방장 저장본: 게임 중엔 localStorage에 남고, 복구하면 같�
   host2.destroy(); c.s.destroy();
   assert.equal(loadHostSave(storage), null);
 });
+
+test('구경꾼: 게임 중 참가하면 자리 -1로 들어와 상태를 받고, 나가면 목록에서 빠진다', async () => {
+  const host = new HostSession({ name: '방장', onLobby() {}, onState() {}, onError() {} });
+  await tick();
+  const b = mkClient(host.code, 'B', 'tokB'); await tick();
+  host.start(); await tick();
+  const c = mkClient(host.code, 'C', 'tokC'); await tick(40);
+  assert.equal(c.seat, -1); assert.ok(c.s.watching);
+  assert.ok(c.views.at(-1).watching);
+  assert.deepEqual(b.views.at(-1).watchers, ['C']);
+  c.s.conn.close(); c.s.destroy(); await tick(40);   // 가짜 Peer는 destroy가 연결을 안 닫아 직접 닫음
+  assert.deepEqual(b.views.at(-1).watchers, []);
+  host.destroy(); b.s.destroy();
+});

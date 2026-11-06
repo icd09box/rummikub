@@ -49,7 +49,7 @@ function pickDisjoint(rack) {
  * CPU 턴 계산. 테이블/손패를 변경하지 않고 결과만 돌려준다.
  * @returns {{ action:'play', table:Array<Array>, rack:Array } | { action:'draw' }}
  */
-export function planCpuTurn({ table, rack, hasMelded }) {
+export function planCpuTurn({ table, rack, hasMelded, level = 'normal' }) {
   const sets = pickDisjoint(rack);
   const total = sets.reduce((s, x) => s + x.value, 0);
   let newTable = table.map(s => s.slice());
@@ -73,5 +73,58 @@ export function planCpuTurn({ table, rack, hasMelded }) {
       if (changed) break;
     }
   }
+  if (level === 'hard') {
+    const r = rearrangePlays(newTable, newRack);
+    if (r.played) { newTable = r.table; newRack = r.rack; played = true; }
+  }
   return played ? { action: 'play', table: newTable, rack: newRack } : { action: 'draw' };
+}
+
+/**
+ * 어려운 컴퓨터: 바닥 묶음을 다시 짜서 손패를 더 낸다.
+ *  ① 긴 연속 묶음을 쪼개 손패 타일을 끼우기 (3-8에 5가 있으면 3-4-5 / 5-6-7-8)
+ *  ② 빌릴 수 있는 바닥 타일(4장 묶음의 한 장, 4장 이상 연속의 끝 장)과 손패 2장으로 새 묶음
+ * 조커는 손패에 아껴 두고, 바닥 조커는 건드리지 않는다. 더 못 낼 때까지 반복.
+ */
+export function rearrangePlays(table, rack) {
+  let t = table.map(s => s.slice()); let r = rack.slice(); let played = false;
+  let progress = true; let guard = 0;
+  while (progress && guard++ < 40) {
+    progress = false;
+    // ① 연속 묶음 쪼개 끼우기
+    outer: for (const tile of r.filter(x => !x.joker)) {
+      for (let i = 0; i < t.length; i++) {
+        const a = analyzeSet(t[i]);
+        if (!a.ok || a.kind !== 'run' || t[i].some(x => x.joker) || t[i].length < 6) continue;
+        const ordered = a.ordered; const lo = ordered[0].num;
+        if (ordered[0].color !== tile.color) continue;
+        const k = tile.num - lo;                      // ordered[k].num === tile.num
+        if (k < 2 || ordered.length - k < 3) continue; // 왼쪽 lo..n-1 (≥2장)+tile, 오른쪽 n..hi (≥3장)
+        const left = [...ordered.slice(0, k), tile], right = ordered.slice(k);
+        if (!isValidSet(left) || !isValidSet(right)) continue;
+        t.splice(i, 1, left, right); r = r.filter(x => x !== tile); played = progress = true; break outer;
+      }
+    }
+    if (progress) continue;
+    // ② 빌린 한 장 + 손패 두 장
+    const borrowable = [];
+    t.forEach((set, i) => {
+      if (set.some(x => x.joker)) return;
+      set.forEach(tile => { const rest = set.filter(x => x !== tile); if (rest.length >= 3 && isValidSet(rest)) borrowable.push({ tile, i }); });
+    });
+    const real = r.filter(x => !x.joker);
+    outer2: for (let a = 0; a < real.length; a++) for (let b = a + 1; b < real.length; b++) for (const bw of borrowable) {
+      const cand = [real[a], real[b], bw.tile];
+      if (!isValidSet(cand)) continue;
+      t[bw.i] = t[bw.i].filter(x => x !== bw.tile); t.push(cand);
+      r = r.filter(x => x !== real[a] && x !== real[b]); played = progress = true; break outer2;
+    }
+    if (progress) continue;
+    // ③ 남은 손패를 묶음 끝에 덧붙이기(재배치 뒤 새로 가능해진 것)
+    for (const tile of r.filter(x => !x.joker)) {
+      const i = t.findIndex(set => isValidSet([...set, tile]));
+      if (i >= 0) { t[i] = [...t[i], tile]; r = r.filter(x => x !== tile); played = progress = true; break; }
+    }
+  }
+  return { table: t, rack: r, played };
 }

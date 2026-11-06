@@ -14,6 +14,8 @@ export function createGame(playerDefs, rng = Math.random, opts = {}) {
     id: i,
     name: d.name || `플레이어 ${i + 1}`,
     type: d.type === 'cpu' ? 'cpu' : 'human',
+    level: d.level === 'hard' ? 'hard' : 'normal',   // 컴퓨터 난이도
+    wins: d.wins || 0,                                // 누적 승수
     rack: pool.splice(0, HAND_SIZE),
     hasMelded: false,
     score: 0,
@@ -27,6 +29,7 @@ export function createGame(playerDefs, rng = Math.random, opts = {}) {
     snapshot: null,
     history: [],
     round: opts.round || 1,
+    turnNo: 0,
   };
   beginTurn(g);
   return g;
@@ -88,7 +91,7 @@ export function endTurn(g) {
   const placedIds = new Set(g.snapshot.rack.filter(t => !p.rack.includes(t)).map(t => t.id));
   const placed = g.table.flat().filter(t => placedIds.has(t.id));
   const names = placed.map(tileLabel).join(', ');
-  g.lastTurn = { seat: p.id, name: p.name, placed, meldValue: p.hasMelded ? null : r.meldValue, rearranged: tableRearranged(g.snapshot.table, g.table, placedIds) };
+  g.lastTurn = { seat: p.id, name: p.name, placed, meldValue: p.hasMelded ? null : r.meldValue, rearranged: tableRearranged(g.snapshot.table, g.table, placedIds), turnNo: ++g.turnNo };
   if (!p.hasMelded) { p.hasMelded = true; g.log.push(`${p.name} 처음 30점 내기 성공 (${r.meldValue}점): ${names}`); }
   else g.log.push(`${p.name} 냄: ${names}`);
   if (p.rack.length === 0) return finish(g, p);
@@ -100,7 +103,7 @@ export function endTurn(g) {
 export function drawTile(g) {
   const p = current(g);
   resetTurn(g);
-  g.lastTurn = { seat: p.id, name: p.name, placed: [], drew: g.pool.length > 0 };
+  g.lastTurn = { seat: p.id, name: p.name, placed: [], drew: g.pool.length > 0, turnNo: ++g.turnNo };
   if (g.pool.length > 0) { p.rack.push(g.pool.shift()); g.log.push(`${p.name} 한 장 뽑음`); }
   else g.log.push(`${p.name} 넘김 (남은 타일 없음)`);
   if (g.pool.length === 0 && g.players.every(x => x._passedEmpty)) return finishByPenalty(g);
@@ -127,6 +130,7 @@ function finish(g, winner) {
   let total = 0;
   for (const p of g.players) if (p !== winner) { const pen = rackPenalty(p.rack); p.score = -pen; total += pen; }
   winner.score = total;
+  winner.wins = (winner.wins || 0) + 1;
   g.players.forEach(p => { p.total += p.score; });
   g.log.push(`${winner.name} 승리!`);
   return { ok: true, over: true };
@@ -139,6 +143,7 @@ function finishByPenalty(g) {
   g.phase = 'over'; g.winner = winner.id;
   for (const p of g.players) p.score = -(rackPenalty(p.rack) - rackPenalty(winner.rack));
   winner.score = g.players.filter(p => p !== winner).reduce((s, p) => s - p.score, 0);
+  winner.wins = (winner.wins || 0) + 1;
   g.players.forEach(p => { p.total += p.score; });
   g.log.push(`남은 타일 없음 — ${winner.name} 타일 점수가 가장 낮아 승리`);
   return { ok: true, over: true };
@@ -147,7 +152,7 @@ function finishByPenalty(g) {
 /** CPU 턴 실행 */
 export function runCpuTurn(g) {
   const p = current(g);
-  const plan = planCpuTurn({ table: g.table, rack: p.rack, hasMelded: p.hasMelded });
+  const plan = planCpuTurn({ table: g.table, rack: p.rack, hasMelded: p.hasMelded, level: p.level });
   if (plan.action === 'draw') return drawTile(g);
   g.table = plan.table; p.rack = plan.rack;
   const r = endTurn(g);
