@@ -66,9 +66,11 @@ button.primary { background: var(--accent); color: var(--accent-text); border-co
 
 @media (max-width: 720px) {
   body { touch-action: manipulation; }
-  .topbar { padding: 6px 12px; }
-  .topbar h1 { font-size: 15px; }
-  .status { font-size: 13px; }
+  .topbar { padding: 4px 10px; gap: 8px; min-height: 40px; }
+  .topbar h1 { font-size: 14px; white-space: nowrap; letter-spacing: .05em; flex-shrink: 0; }
+  .topbar > div { display: flex; align-items: center; gap: 4px; min-width: 0; flex: 1; justify-content: flex-end; }
+  .status { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .net, .timer { white-space: nowrap; }
   #game { flex-direction: column; height: calc(100vh - 40px); height: calc(100dvh - 40px); }
   .screen:not(#game) { align-items: flex-start; padding-top: 16px; }
   /* 플레이어 패널 → 가로 칩 한 줄 */
@@ -88,7 +90,8 @@ button.primary { background: var(--accent); color: var(--accent-text); border-co
   .tile.selected { transform: translateY(-6px); }
   /* 버튼: 두 줄. 아래 줄(뽑기·차례 끝)은 항상 전체 폭으로 보이게 */
   .actions { padding: 6px 10px; gap: 6px; flex-wrap: wrap; }
-  .actions .group { flex-wrap: nowrap; width: 100%; overflow-x: auto; }
+  .actions .group { flex-wrap: wrap; width: 100%; }   /* 잘려서 안 보이는 것보다 두 줄이 낫다 */
+  .actions .group:not(.main) button { flex: 1 1 auto; }
   .actions .group.main { margin-left: 0; }
   .actions .group.main button { flex: 1; font-weight: 700; padding: 11px 8px; font-size: 15px; }
   .actions button { padding: 8px 9px; font-size: 13px; white-space: nowrap; }

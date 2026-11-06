@@ -390,14 +390,14 @@ function render(cpuView = false) {
 
   const me = v.players[v.seat];
   if (cpuView) $('status').textContent = '';
-  else if (myTurn) $('status').textContent = `내 차례${me && !me.hasMelded ? ' · 처음엔 내 타일만으로 30점 이상 내야 해요' : ''}`;
+  else if (myTurn) $('status').textContent = '내 차례';
   else $('status').textContent = `${v.currentName}의 차례예요. 기다려 주세요`;
 
   renderSelectionBar(myTurn);
   const hint = $('hint');
   const freshNote = Date.now() - lastMovedAt < 1500 && lastMoved.size ? describeMove(v) : '';
   if (freshNote) { hint.textContent = freshNote; hint.className = 'hint good'; }
-  else if (!v.changed) { hint.textContent = myTurn ? '타일을 끌어서 바닥에 놓으세요. 맞는 묶음 옆에 놓으면 알아서 붙어요.' : ''; hint.className = 'hint'; }
+  else if (!v.changed) { hint.textContent = myTurn ? (me && !me.hasMelded ? '처음엔 내 타일만으로 30점 이상 내야 해요. 타일을 끌어서 바닥에 놓으세요.' : '타일을 끌어서 바닥에 놓으세요. 맞는 묶음 옆에 놓으면 알아서 붙어요.') : ''; hint.className = 'hint'; }
   else if (v.check) {
     const r = v.check;
     hint.textContent = r.ok ? `좋아요! "내 차례 끝"을 누르세요 (${r.placed}장 냄${r.meldValue != null ? `, 처음 내기 ${r.meldValue}점` : ''})` : r.reason;
