@@ -20,7 +20,7 @@ let view = null;           // 현재 화면 상태
 let selected = new Set();
 let lastHumanShown = -1;
 let sortMode = 'num';        // num | color | free(내 맘대로)
-let freeLayout = { top: [], bottom: [] };   // 내 맘대로 정리 배치(타일 id)
+let freeLayout = { groups: [], bottom: [] };   // 내 맘대로 정리 배치(타일 id). groups = 위 묶음 칸들
 let pendingPlace = null;    // 바닥→내 타일로 가져올 때 놓을 자리
 let rackZoned = false;      // 내 타일 칸이 위(묶음)·아래 두 구역으로 나뉘어 있는지
 let lastTap = {};           // 두 번 클릭 판정용 { id, at }
@@ -407,14 +407,14 @@ function displayOrder(table) {
 /** 내 맘대로 배치를 현재 손패에 맞춰 정리(없어진 id 제거, 새 id는 아래 줄 끝에) */
 function layoutKey() { return 'rummi-layout-' + (session ? (session.code + '-' + view.seat) : 'local-' + view.seat); }
 function saveLayout() { try { sessionStorage.setItem(layoutKey(), JSON.stringify({ mode: sortMode, layout: freeLayout })); } catch {} }
-function loadLayout() { try { const d = JSON.parse(sessionStorage.getItem(layoutKey()) || 'null'); if (d && d.layout) { freeLayout = d.layout; sortMode = d.mode || 'free'; } } catch {} }
+function loadLayout() { try { const d = JSON.parse(sessionStorage.getItem(layoutKey()) || 'null'); if (d && d.layout) { freeLayout = { groups: d.layout.groups || [], bottom: d.layout.bottom || [] }; sortMode = d.mode || 'free'; } } catch {} }
 let layoutLoadedFor = null;
 function freeOrder(rack) {
   const byId = new Map(rack.map(t => [t.id, t]));
   const has = new Set(rack.map(t => t.id));
-  freeLayout.top = freeLayout.top.filter(id => has.has(id));
+  freeLayout.groups = freeLayout.groups.map(g => g.filter(id => has.has(id))).filter(g => g.length);
   freeLayout.bottom = freeLayout.bottom.filter(id => has.has(id));
-  const placed = new Set([...freeLayout.top, ...freeLayout.bottom]);
+  const placed = new Set([...freeLayout.groups.flat(), ...freeLayout.bottom]);
   const missing = rack.filter(t => !placed.has(t.id)).map(t => t.id);
   if (pendingPlace && missing.length) {
     const ids = missing.filter(id => pendingPlace.ids.includes(id));
@@ -423,22 +423,24 @@ function freeOrder(rack) {
   } else freeLayout.bottom.push(...sortRack(rack.filter(t => missing.includes(t.id))).map(t => t.id));
   pendingPlace = null;
   saveLayout();
-  return { top: freeLayout.top.map(id => byId.get(id)), bottom: freeLayout.bottom.map(id => byId.get(id)) };
+  return { groups: freeLayout.groups.map(g => g.map(id => byId.get(id))), bottom: freeLayout.bottom.map(id => byId.get(id)) };
 }
+/** zone: 'bottom' | 'g<번호>'(위 묶음 칸) | 'gnew'(새 칸 만들기) */
 function applyPlacement(ids, { zone, index }) {
   const idSet = new Set(ids);
-  freeLayout.top = freeLayout.top.filter(id => !idSet.has(id));
+  const groups = freeLayout.groups.map(g => g.filter(id => !idSet.has(id)));
   freeLayout.bottom = freeLayout.bottom.filter(id => !idSet.has(id));
-  const arr = freeLayout[zone];
-  arr.splice(Math.min(index, arr.length), 0, ...ids);
+  if (zone === 'gnew') groups.push(ids.slice());
+  else { const arr = zone === 'bottom' ? freeLayout.bottom : groups[Number(zone.slice(1))]; arr.splice(Math.min(index, arr.length), 0, ...ids); }
+  freeLayout.groups = groups.filter(g => g.length);
 }
 /** 내 타일 칸 안의 좌표 → 어느 구역의 몇 번째 자리인지 */
 function rackPlacement(x, y, movingIds) {
   const moving = new Set(movingIds);
   const zones = [...$('rack').querySelectorAll('.zone')];
   if (!zones.length) return { zone: 'bottom', index: 0 };
-  let zoneEl = zones.find(z => { const r = z.getBoundingClientRect(); return y >= r.top && y <= r.bottom; });
-  if (!zoneEl) { const r0 = zones[0].getBoundingClientRect(); zoneEl = y < r0.bottom ? zones[0] : zones[zones.length - 1]; }
+  const dist = z => { const r = z.getBoundingClientRect(); return Math.hypot(Math.max(r.left - x, 0, x - r.right), Math.max(r.top - y, 0, y - r.bottom)); };
+  const zoneEl = zones.reduce((a, b) => (dist(b) < dist(a) ? b : a));   // 묶음 칸이 옆으로 나란히 있어서 x까지 본다
   const tiles = [...zoneEl.querySelectorAll('.tile')].filter(t => !moving.has(Number(t.dataset.id)));
   let index = 0;
   for (const t of tiles) {
@@ -457,6 +459,7 @@ function sortRack(rack) {
 }
 
 function render(cpuView = false) {
+  if (drag && drag.moved) return;   // 남의 차례에 들어온 화면 갱신이 끌던 타일을 지우지 않게. 놓을 때 다시 그린다
   const v = view;
   const myTurn = !cpuView && v.seat === v.turn;
   const newIds = new Set(v.newIds);
@@ -521,7 +524,9 @@ function render(cpuView = false) {
       const now = Date.now();
       if (free && lastTap.id === t.id && now - lastTap.at < 400) {
         lastTap = {}; selected.delete(t.id);
-        applyPlacement([t.id], { zone: freeLayout.top.includes(t.id) ? 'bottom' : 'top', index: Infinity });
+        const inGroup = freeLayout.groups.some(g => g.includes(t.id));
+        const n = freeLayout.groups.length;
+        applyPlacement([t.id], { zone: inGroup ? 'bottom' : n ? 'g' + (n - 1) : 'gnew', index: Infinity });
         return render();
       }
       lastTap = { id: t.id, at: now };
@@ -531,11 +536,16 @@ function render(cpuView = false) {
   };
   if (free) {
     if (sortMode !== 'free') o.bottom = sortRack(o.bottom);
-    for (const zone of ['top', 'bottom']) {
-      const z = document.createElement('div'); z.className = 'zone ' + zone; z.dataset.zone = zone;
-      o[zone].forEach(t => z.appendChild(mkTile(t)));
-      rack.appendChild(z);
-    }
+    const mkZone = (key, cls, tiles, parent) => {
+      const z = document.createElement('div'); z.className = 'zone ' + cls; z.dataset.zone = key;
+      tiles.forEach(t => z.appendChild(mkTile(t)));
+      parent.appendChild(z);
+    };
+    const row = document.createElement('div'); row.className = 'zone-row';
+    o.groups.forEach((g, i) => mkZone('g' + i, 'top', g, row));
+    mkZone('gnew', 'top new' + (o.groups.length ? ' slim' : ''), [], row);   // 여기 놓으면 칸이 하나 더 생김
+    rack.appendChild(row);
+    mkZone('bottom', 'bottom', o.bottom, rack);
   } else for (const t of sortRack(v.rack)) rack.appendChild(mkTile(t));
 
   $('players').innerHTML = v.players.map((x, i) => `

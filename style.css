@@ -314,7 +314,12 @@ button.big { width: 100%; padding: 14px; font-size: 16px; border-radius: 12px; m
 .rack.free { display: flex; flex-direction: column; gap: 6px; overflow: visible; padding: 8px 10px; max-height: 42vh; overflow-y: auto; }
 .rack.free .zone { display: flex; flex-wrap: wrap; gap: 4px; min-height: 58px; border-radius: 8px; padding: 4px; position: relative; }
 .rack.free .zone.top { background: rgba(143,219,36,.08); border: 1px dashed rgba(143,219,36,.45); }
-.rack.free .zone.top:empty::after { content: '다 만든 묶음을 여기 올려 두세요 · 두 번 누르면 넣고 빼기'; color: var(--muted); font-size: 12px; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+.rack.free .zone-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.rack.free .zone-row .zone.top { flex: 0 1 auto; min-width: 48px; }
+.rack.free .zone-row .zone.new { flex: 1 1 auto; }
+.rack.free .zone-row .zone.new.slim { flex: 0 0 48px; }
+.rack.free .zone.new.slim:empty::after { content: '+'; font-size: 20px; }
+.rack.free .zone.top:empty::after { content: '다 만든 묶음을 여기 올려 두세요 · 칸은 여러 개 · 두 번 누르면 넣고 빼기'; color: var(--muted); font-size: 12px; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
 .rack.free .zone.drop-hover { box-shadow: inset 0 0 0 2px var(--accent); background: rgba(143,219,36,.15); }
 .rack.free .tile { flex: 0 0 auto; }
 @media (max-width: 720px) { .rack.free { padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); } .rack.free .zone { min-height: 56px; } }
