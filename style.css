@@ -53,7 +53,7 @@ button.primary { background: var(--accent); color: var(--accent-text); border-co
 .hint:empty::before { content: "\00a0"; }   /* 내 차례가 아닐 때 안내가 비어도 한 줄 높이를 지켜 아래 칸이 들썩이지 않게 */
 .rack { display: flex; flex-wrap: wrap; gap: 4px; padding: 12px 14px; background: var(--rackbg); min-height: 84px; }
 
-.tile { width: 40px; height: 56px; border-radius: 6px; background: var(--tile); border-bottom: 3px solid var(--tile-edge); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 20px; cursor: pointer; user-select: none; box-shadow: 0 1px 2px rgba(0,0,0,.4); transition: transform .08s; }
+.tile { width: 34px; height: 46px; border-radius: 6px; background: var(--tile); border-bottom: 3px solid var(--tile-edge); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 16px; cursor: pointer; user-select: none; box-shadow: 0 1px 2px rgba(0,0,0,.4); transition: transform .08s; }
 .tile.red { color: var(--red); } .tile.blue { color: var(--blue); } .tile.black { color: var(--black); } .tile.orange { color: var(--orange); }
 .tile.joker { color: var(--joker); font-size: 22px; }
 .tile.selected { transform: translateY(-8px); outline: 3px solid var(--accent); }
@@ -90,7 +90,7 @@ button.primary { background: var(--accent); color: var(--accent-text); border-co
   .set { gap: 2px; padding: 4px; }
   .rack { flex-wrap: nowrap; overflow-x: auto; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); min-height: 0; gap: 5px; -webkit-overflow-scrolling: touch; }
   .rack .tile { flex: 0 0 auto; }
-  .tile { width: 38px; height: 54px; font-size: 19px; }
+  .tile { width: 30px; height: 41px; font-size: 15px; border-bottom-width: 2px; }   /* 폰: 한 줄에 더 많이, 묶음 칸·바닥 세로 공간 확보 */
   .tile.selected { transform: translateY(-6px); }
   /* 버튼: 보조 버튼 한 줄 + 뽑기·차례 끝 한 줄 */
   .actions { padding: 5px 8px; gap: 5px; flex-wrap: wrap; }
@@ -100,11 +100,11 @@ button.primary { background: var(--accent); color: var(--accent-text); border-co
   .actions .group.main button { flex: 1; font-weight: 700; padding: 9px 8px; font-size: 15px; }
   .actions button { padding: 8px 9px; font-size: 13px; white-space: nowrap; }
   .hint { font-size: 12px; padding: 3px 10px; min-height: 18px; }
-  .drag-ghost { width: 44px; height: 60px; font-size: 20px; }
+  .drag-ghost { width: 36px; height: 48px; font-size: 17px; }
 }
 @media (max-width: 400px) {
   .actions button { padding: 8px 7px; font-size: 12px; }
-  .tile { width: 34px; height: 50px; font-size: 17px; }
+  .tile { width: 28px; height: 39px; font-size: 14px; }
 }
 /* 가로 모드 폰: 버튼·플레이어를 오른쪽 세로 기둥으로 보내 바닥·타일에 세로 공간을 몰아준다 */
 @media (max-height: 520px) and (orientation: landscape) and (max-width: 1024px) {
@@ -125,13 +125,11 @@ button.primary { background: var(--accent); color: var(--accent-text); border-co
   .actions .group, .actions .group.main { flex-direction: column; width: 100%; overflow: visible; gap: 4px; margin: 0; }
   .actions button { width: 100%; padding: 7px 6px; font-size: 12px; }
   .actions .group.main button { padding: 9px 6px; font-size: 13px; }
-  .tile { width: 34px; height: 46px; font-size: 16px; }
+  .tile { width: 30px; height: 41px; font-size: 15px; }
   .emoji-bar { top: 34px; right: 140px; }
   .reactions { top: 36px; }
 }
-  .side { padding: 3px 10px; }
-  .tile { width: 34px; height: 46px; font-size: 16px; }
-}
+.side { padding: 3px 10px; }
 
 /* 온라인 모드 */
 .tabs { display: flex; gap: 6px; margin-bottom: 14px; }
@@ -322,7 +320,7 @@ button.big { width: 100%; padding: 14px; font-size: 16px; border-radius: 12px; m
 .rack.free .zone.top:empty::after { content: '다 만든 묶음은 여기에 · 두 번 누르면 넣고 빼기'; color: var(--muted); font-size: 12px; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
 .rack.free .zone.drop-hover { box-shadow: inset 0 0 0 2px var(--accent); background: rgba(143,219,36,.15); }
 .rack.free .tile { flex: 0 0 auto; }
-@media (max-width: 720px) { .rack.free { padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); } .rack.free .zone { min-height: 56px; } }
+@media (max-width: 720px) { .rack.free { padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); } .rack.free .zone { min-height: 48px; } }
 
 /* ===== 로비·결과 화면(설정 화면과 같은 톤) ===== */
 .lobby-card, .over-card { text-align: center; }

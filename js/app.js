@@ -334,9 +334,32 @@ document.addEventListener('pointerup', e => {
     selected.clear(); return dispatch({ type: 'move', ids: mine, to: { kind: 'rack' } });
   }
   selected.clear();
-  dispatch(moveAction(d.ids, target.kind === 'new' ? smartTarget(d.ids, e.clientX, e.clientY, d.fromSet) : target));
+  moveActions(d.ids, target.kind === 'new' ? smartTarget(d.ids, e.clientX, e.clientY, d.fromSet) : target).forEach(dispatch);
 });
 
+/** 고른 타일이 맞는 묶음 여러 개로 딱 나뉘면(4 5 6 + 9 9 9) 그 묶음들, 아니면 null */
+function splitIntoSets(tiles) {
+  if (tiles.length < 6 || tiles.length > 16) return null;
+  const [first, ...rest] = tiles;
+  for (let mask = 0; mask < 1 << rest.length; mask++) {
+    const pick = [first, ...rest.filter((_, i) => mask & (1 << i))];
+    const left = rest.filter((_, i) => !(mask & (1 << i)));
+    if (pick.length < 3 || left.length < 3 || !analyzeSet(pick).ok) continue;
+    const more = analyzeSet(left).ok ? [left] : splitIntoSets(left);
+    if (more) return [pick, ...more];
+  }
+  return null;
+}
+/** 놓기 → 실제로 보낼 move 목록. 여러 묶음 한꺼번에 내기·긴 연속 묶음 가운데 끼워 나누기를 알아서 처리 */
+function moveActions(ids, to) {
+  if (to.kind === 'new') {
+    const byId = new Map([...view.table.flat(), ...view.rack].map(t => [t.id, t]));
+    const tiles = ids.map(id => byId.get(id)).filter(Boolean);
+    const parts = !analyzeSet(tiles).ok && splitIntoSets(tiles);
+    if (parts) return parts.map(p => ({ type: 'move', ids: p.map(t => t.id), to: { kind: 'new' } }));
+  }
+  return [moveAction(ids, to)];
+}
 /** 7 8 9 10 11에 같은 색 9를 놓으면 7 8 9 / 9 10 11로 알아서 나눈다(양쪽 다 3장 이상일 때만) */
 function moveAction(ids, to) {
   const plain = { type: 'move', ids, to };
@@ -694,7 +717,7 @@ function onSetClick(e, idx) {
     if (selected.size === 0 || selected.has(id) || [...selected].some(s => onTable.has(s))) { toggle(id); return render(); }
   }
   if (selected.size === 0) return;
-  dispatch(moveAction([...selected], { kind: 'set', index: idx })); selected.clear();
+  moveActions([...selected], { kind: 'set', index: idx }).forEach(dispatch); selected.clear();
 }
 function computePlan() {
   const v = view; const me = v.players[v.seat];
